@@ -29,7 +29,7 @@ pub enum Operator {
 #[derive(Debug)]
 pub enum Expression {
     Constant { m_value: i32 },
-    String { m_value: String },
+    // String { m_value: String },
     OperUnary { m_operator: Operator, m_value: Box<Expression> },
 }
 
