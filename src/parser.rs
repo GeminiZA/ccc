@@ -1,4 +1,4 @@
-use crate::Token;
+use crate::{token::OperatorToken, Token};
 use core::slice::Iter;
 
 #[derive(Debug)]
@@ -20,9 +20,17 @@ pub struct Function {
 }
 
 #[derive(Debug)]
+pub enum Operator {
+    OperatorComplement,
+    OperatorMinus,
+    OperatorNegation,
+}
+
+#[derive(Debug)]
 pub enum Expression {
-    Arithmetic { m_value: i32 },
+    Constant { m_value: i32 },
     String { m_value: String },
+    OperUnary { m_operator: Operator, m_value: Box<Expression> },
 }
 
 // Todo change function, expression and statement to enums to support different statement types etc
@@ -35,7 +43,7 @@ pub enum Expression {
 #[derive(Debug)]
 pub enum Statement {
     Return(Expression),
-    Assign { name: String, value: Expression },
+    // Assign { name: String, value: Expression },
     // Other types if etc
 }
 
@@ -48,12 +56,12 @@ pub fn parse_program(tokens: &Vec<Token>) -> Result<Program, ParseError> {
         Err(e) => return Err(e),
     }
 
-    return Ok(Program {
-        m_function: function,
-    });
+    return Ok(Program { m_function: function });
 }
 
-fn parse_function(token_iter: &mut Iter<Token>) -> Result<Function, ParseError> {
+fn parse_function(
+    token_iter: &mut Iter<Token>,
+) -> Result<Function, ParseError> {
     //Members
     let statement;
     let id;
@@ -105,13 +113,12 @@ fn parse_function(token_iter: &mut Iter<Token>) -> Result<Function, ParseError> 
         None => return Err(ParseError::ExpectedToken),
     }
 
-    return Ok(Function {
-        m_statement: statement,
-        m_id: id,
-    });
+    return Ok(Function { m_statement: statement, m_id: id });
 }
 
-fn parse_statement(token_iter: &mut Iter<Token>) -> Result<Statement, ParseError> {
+fn parse_statement(
+    token_iter: &mut Iter<Token>,
+) -> Result<Statement, ParseError> {
     //Members
     let expression;
     //Token Iter
@@ -138,16 +145,35 @@ fn parse_statement(token_iter: &mut Iter<Token>) -> Result<Statement, ParseError
     return Ok(Statement::Return(expression));
 }
 
-fn parse_expression(token_iter: &mut Iter<Token>) -> Result<Expression, ParseError> {
+fn parse_expression(
+    token_iter: &mut Iter<Token>,
+) -> Result<Expression, ParseError> {
     //Members
     let value: i32;
+    let operator: Operator;
+    let expression: Expression;
 
     let mut token = token_iter.next();
     match token {
         Some(Token::IntLiteral(val)) => value = val.clone(),
+        Some(Token::Operator(o)) => {
+            return match parse_expression(token_iter) {
+                Ok(e) => Ok(Expression::OperUnary {
+                    m_operator: match o {
+                        OperatorToken::Minus => Operator::OperatorMinus,
+                        OperatorToken::Complement => {
+                            Operator::OperatorComplement
+                        }
+                        OperatorToken::Negation => Operator::OperatorNegation,
+                    },
+                    m_value: Box::new(e),
+                }),
+                Err(e) => Err(e),
+            }
+        }
         Some(_) => return Err(ParseError::UnexpectedToken),
         None => return Err(ParseError::ExpectedToken),
     }
 
-    return Ok(Expression::Arithmetic { m_value: (value) });
+    return Ok(Expression::Constant { m_value: (value) });
 }

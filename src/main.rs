@@ -1,7 +1,6 @@
 use std::env;
 use std::fs;
 use std::fs::write;
-use std::io::Result;
 use token::Token;
 
 mod generator;

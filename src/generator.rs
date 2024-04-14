@@ -1,5 +1,6 @@
 use crate::parser;
 use crate::parser::Expression;
+use crate::parser::Operator;
 use crate::parser::Statement;
 
 pub fn generate(program: &parser::Program) -> String {
@@ -13,9 +14,19 @@ pub fn generate(program: &parser::Program) -> String {
 
     match statem {
         Statement::Return(expr) => match expr {
-            Expression::Arithmetic { m_value } => {
-                gen_s.push_str(format!("mov\t${0}, %rax\nret", m_value).as_str());
+            Expression::Constant { m_value } => {
+                gen_s.push_str(
+                    format!("mov\t${0}, %rax\nret", m_value).as_str(),
+                );
             }
+            Expression::OperUnary { m_operator, m_value } => match m_operator {
+                Operator::OperatorMinus => gen_s.push_str(format!("").as_str()),
+                Operator::OperatorNegation => gen_s
+                    .push_str(format!("movl\t${0}, %rax\n", m_value).as_str()),
+                Operator::OperatorComplement => {
+                    gen_s.push_str(format!("").as_str())
+                }
+            },
             _ => (),
         },
         _ => (),
