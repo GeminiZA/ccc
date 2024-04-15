@@ -9,14 +9,12 @@ pub enum Token {
     KeywordReturn,
     IntLiteral(i32),
     SemiColon,
-    Operator(OperatorToken),
-}
-
-#[derive(Debug)]
-pub enum OperatorToken {
-    Minus,
-    Complement,
-    Negation,
+    OperatorMinus,
+    OperatorComplement,
+    OperatorNegation,
+    OperatorAddtion,
+    OperatorMultiplication,
+    OperatorDivision,
 }
 
 // // Incomplete debug formatter

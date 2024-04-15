@@ -1,14 +1,11 @@
-use crate::{
-    parser::Operator,
-    token::{OperatorToken, Token},
-};
+use crate::token::Token;
 
 pub fn lex(input: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
 
     let mut cur_token_string = String::new();
 
-    let break_chars = " \t\n{}();-~!";
+    let break_chars = " \t\n{}();-~!+*/";
     let white_space = " \t\n";
 
     for c in input.chars() {
@@ -46,11 +43,17 @@ pub fn lex(input: &str) -> Vec<Token> {
             } else if c == ';' {
                 tokens.push(Token::SemiColon);
             } else if c == '-' {
-                tokens.push(Token::Operator(OperatorToken::Minus));
+                tokens.push(Token::OperatorMinus);
             } else if c == '~' {
-                tokens.push(Token::Operator(OperatorToken::Complement));
+                tokens.push(Token::OperatorComplement);
             } else if c == '!' {
-                tokens.push(Token::Operator(OperatorToken::Negation));
+                tokens.push(Token::OperatorNegation);
+            } else if c == '+' {
+                tokens.push(Token::OperatorAddtion);
+            } else if c == '*' {
+                tokens.push(Token::OperatorMultiplication);
+            } else if c == '/' {
+                tokens.push(Token::OperatorDivision);
             }
         } else {
             cur_token_string.push(c);
