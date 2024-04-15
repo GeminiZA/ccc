@@ -26,7 +26,7 @@ fn generate_expression(expression: &Expression) -> String {
         }
     }
 
-    return String::new();
+    return gen_s;
 }
 
 fn generate_term(term: &Term) -> String {
@@ -63,7 +63,7 @@ fn generate_factor(factor: &Factor) -> String {
 
     match factor {
         Factor::Constant { m_value } => {
-            gen_s.push_str(format!("movq\t{0}, %rax\n", m_value).as_str());
+            gen_s.push_str(format!("movq\t${0}, %rax\n", &m_value).as_str());
         }
         Factor::UnaryOperation { m_opertator, m_factor } => {
             gen_s.push_str(&generate_factor(&m_factor));
@@ -92,7 +92,7 @@ fn generate_factor(factor: &Factor) -> String {
     return gen_s;
 }
 
-fn generate_statment(statement: &Statement) -> String {
+fn generate_statement(statement: &Statement) -> String {
     let mut gen_s: String = String::new();
 
     match statement {
@@ -111,7 +111,7 @@ fn generate_function(function: &Function) -> String {
     gen_s.push_str(format!(".globl {0}\n{0}:\n", function.m_id).as_str());
 
     match &function.m_statement {
-        Some(s) => gen_s.push_str(generate_statment(s).as_str()),
+        Some(s) => gen_s.push_str(generate_statement(s).as_str()),
         None => (),
     }
 

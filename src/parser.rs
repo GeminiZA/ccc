@@ -153,6 +153,7 @@ fn parse_function(
 fn parse_statement(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Statement, ParseError> {
+    // println!("Parsing statement from {:?}", &token_iter);
     //Members
     let mut statement: Statement;
     //Token Iter
@@ -186,12 +187,14 @@ fn parse_expression(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Expression, ParseError> {
     //Members
+    // println!("Parsing Expression from {:?}", &token_iter);
     let mut expression = match parse_term(token_iter) {
         Ok(t) => Expression { m_first_term: Box::new(t), m_rest: Vec::new() },
         Err(e) => return Err(e),
     };
 
     while let Some(&next) = token_iter.peek() {
+        // println!("next token: {:?}", &next);
         match next {
             Token::OperatorAddtion => {
                 token_iter.next();
@@ -201,7 +204,7 @@ fn parse_expression(
                         Ok(term) => term,
                         Err(e) => return Err(e),
                     },
-                ))
+                ));
             }
             Token::OperatorMinus => {
                 token_iter.next();
@@ -211,7 +214,7 @@ fn parse_expression(
                         Ok(term) => term,
                         Err(e) => return Err(e),
                     },
-                ))
+                ));
             }
             _ => break,
         }
@@ -223,6 +226,7 @@ fn parse_expression(
 fn parse_term(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Term, ParseError> {
+    // println!("Parsing term from {:?}", &token_iter);
     let mut term = match parse_factor(token_iter) {
         Ok(f) => Term { m_first_factor: Box::new(f), m_rest: Vec::new() },
         Err(e) => return Err(e),
@@ -238,7 +242,7 @@ fn parse_term(
                         Ok(f) => f,
                         Err(e) => return Err(e),
                     },
-                ))
+                ));
             }
             Token::OperatorDivision => {
                 token_iter.next();
@@ -248,7 +252,7 @@ fn parse_term(
                         Ok(f) => f,
                         Err(e) => return Err(e),
                     },
-                ))
+                ));
             }
             _ => break,
         }
@@ -260,6 +264,7 @@ fn parse_term(
 fn parse_factor(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Factor, ParseError> {
+    // println!("Parsing factor from {:?}", &token_iter);
     let mut factor: Factor;
     let mut cur_token = match token_iter.next() {
         Some(t) => t,
@@ -268,7 +273,6 @@ fn parse_factor(
 
     match cur_token {
         Token::OpenParen => {
-            token_iter.next();
             factor = Factor::Braced {
                 m_expression: match parse_expression(token_iter) {
                     Ok(e) => e,
@@ -280,7 +284,7 @@ fn parse_factor(
                 None => return Err(ParseError::ExpectedToken),
             };
             match next_token {
-                Token::CloseBrace => (),
+                Token::CloseParen => (),
                 _ => return Err(ParseError::UnexpectedToken),
             }
         }

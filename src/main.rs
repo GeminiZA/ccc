@@ -51,7 +51,7 @@ fn main() {
 
     let tokens: Vec<Token> = lexer::lex(&s);
 
-    println!("Tokens: {:?}", tokens);
+    // println!("Tokens: {:?}", tokens);
 
     let program_result = parser::parse_program(&tokens);
 
@@ -63,7 +63,7 @@ fn main() {
         }
     };
 
-    println!("AST: {:?}", program);
+    // println!("AST: {:?}", program);
 
     let s_program = generator::generate(&program);
 
@@ -75,37 +75,37 @@ fn main() {
         }
     }
 
-    println!("Program: {:?}", s_program);
+    //println!("{:?}", s_program);
 
-    // let dir = in_path.parent().unwrap_or(Path::new(""));
-    // let gcc_out_path = dir.join(&program_name);
+    let dir = in_path.parent().unwrap_or(Path::new(""));
+    let gcc_out_path = dir.join(&program_name);
 
-    // let gcc_output = Command::new("gcc")
-    // .arg(&out_path)
-    // .arg("-o")
-    // .arg(&gcc_out_path)
-    // .output()
-    // .expect("Failed to execute gcc");
+    let gcc_output = Command::new("gcc")
+        .arg(&out_path)
+        .arg("-o")
+        .arg(&gcc_out_path)
+        .output()
+        .expect("Failed to execute gcc");
 
-    // if !gcc_output.status.success() {
-    // eprintln!(
-    // "gcc failed with output: \n{}",
-    // String::from_utf8_lossy(&gcc_output.stderr)
-    // );
-    // return;
-    // }
+    if !gcc_output.status.success() {
+        eprintln!(
+            "gcc failed with output: \n{}",
+            String::from_utf8_lossy(&gcc_output.stderr)
+        );
+        return;
+    }
 
-    // let rm_output = Command::new("rm")
-    // .arg(&out_path)
-    // .output()
-    // .expect("Failed to execute rm");
+    let rm_output = Command::new("rm")
+        .arg(&out_path)
+        .output()
+        .expect("Failed to execute rm");
 
-    // if !rm_output.status.success() {
-    // eprintln!(
-    // "Failed to delete assembly file: rm failed with: \n{}",
-    // String::from_utf8_lossy(&rm_output.stderr)
-    // );
-    // }
+    if !rm_output.status.success() {
+        eprintln!(
+            "Failed to delete assembly file: rm failed with: \n{}",
+            String::from_utf8_lossy(&rm_output.stderr)
+        );
+    }
 
-    // println!("Successfully compiled:");
+    println!("Successfully compiled:");
 }
