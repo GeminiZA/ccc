@@ -49,7 +49,10 @@ fn main() {
         }
     };
 
-    let tokens: Vec<Token> = lexer::lex(&s);
+    let tokens: Vec<Token> = match lexer::lex(&s) {
+        Ok(v) => v,
+        Err(e) => panic!("Could not tokenize: {:?}", e),
+    };
 
     // println!("Tokens: {:?}", tokens);
 

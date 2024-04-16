@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
     KeywordInt,
     Identifier(String),
@@ -15,6 +15,14 @@ pub enum Token {
     OperatorAddtion,
     OperatorMultiplication,
     OperatorDivision,
+    OperatorAnd,
+    OperatorOr,
+    OperatorEqual,
+    OperatorNotEqual,
+    OperatorLess,
+    OperatorGreater,
+    OperatorLessOrEqual,
+    OperatorGreaterOrEqual,
 }
 
 // // Incomplete debug formatter
