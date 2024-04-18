@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use token::Token;
 
-// mod generator;
+mod generator;
 mod lexer;
 mod parser;
 mod token;
@@ -66,37 +66,39 @@ fn main() {
         }
     };
 
-    println!("AST: {:?}", program);
+    // println!("AST: {:?}", program);
 
-    // let s_program = generator::generate(&program);
+    let mut generator = generator::Generator::new();
 
-    // match write(&out_path, &s_program) {
-    // Ok(_) => (),
-    // Err(e) => {
-    // println!("{:?}", e);
-    // return;
-    // }
-    // }
+    let s_program = generator.generate(&program);
 
-    // //println!("{:?}", s_program);
+    match write(&out_path, &s_program) {
+        Ok(_) => (),
+        Err(e) => {
+            println!("{:?}", e);
+            return;
+        }
+    }
 
-    // let dir = in_path.parent().unwrap_or(Path::new(""));
-    // let gcc_out_path = dir.join(&program_name);
+    // println!("{:?}", s_program);
 
-    // let gcc_output = Command::new("gcc")
-    // .arg(&out_path)
-    // .arg("-o")
-    // .arg(&gcc_out_path)
-    // .output()
-    // .expect("Failed to execute gcc");
+    let dir = in_path.parent().unwrap_or(Path::new(""));
+    let gcc_out_path = dir.join(&program_name);
 
-    // if !gcc_output.status.success() {
-    // eprintln!(
-    // "gcc failed with output: \n{}",
-    // String::from_utf8_lossy(&gcc_output.stderr)
-    // );
-    // return;
-    // }
+    let gcc_output = Command::new("gcc")
+        .arg(&out_path)
+        .arg("-o")
+        .arg(&gcc_out_path)
+        .output()
+        .expect("Failed to execute gcc");
+
+    if !gcc_output.status.success() {
+        eprintln!(
+            "gcc failed with output: \n{}",
+            String::from_utf8_lossy(&gcc_output.stderr)
+        );
+        return;
+    }
 
     // let rm_output = Command::new("rm")
     // .arg(&out_path)
@@ -110,5 +112,5 @@ fn main() {
     // );
     // }
 
-    // println!("Successfully compiled:");
+    println!("Successfully compiled:");
 }
