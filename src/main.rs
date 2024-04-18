@@ -100,17 +100,17 @@ fn main() {
         return;
     }
 
-    // let rm_output = Command::new("rm")
-    // .arg(&out_path)
-    // .output()
-    // .expect("Failed to execute rm");
+    let rm_output = Command::new("rm")
+        .arg(&out_path)
+        .output()
+        .expect("Failed to execute rm");
 
-    // if !rm_output.status.success() {
-    // eprintln!(
-    // "Failed to delete assembly file: rm failed with: \n{}",
-    // String::from_utf8_lossy(&rm_output.stderr)
-    // );
-    // }
+    if !rm_output.status.success() {
+        eprintln!(
+            "Failed to delete assembly file: rm failed with: \n{}",
+            String::from_utf8_lossy(&rm_output.stderr)
+        );
+    }
 
     println!("Successfully compiled:");
 }
