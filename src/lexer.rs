@@ -104,7 +104,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
                         tokens.push(Token::OperatorEqual);
                         c_i.next();
                     }
-                    _ => return Err(LexError::NotImplemented),
+                    _ => tokens.push(Token::OperatorAssign),
                 }
             }
         } else {

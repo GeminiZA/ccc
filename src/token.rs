@@ -23,6 +23,7 @@ pub enum Token {
     OperatorGreater,
     OperatorLessOrEqual,
     OperatorGreaterOrEqual,
+    OperatorAssign,
 }
 
 // // Incomplete debug formatter
