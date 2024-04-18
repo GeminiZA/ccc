@@ -11,7 +11,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
 
     let mut cur_token_string = String::new();
 
-    let break_chars = " \t\n{}();-~!+*/<>&|=";
+    let break_chars = " \t\n{}();-~!+*/<>&|=:?";
     let white_space = " \t\n";
 
     let mut i = 0;
@@ -24,6 +24,10 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
                     tokens.push(Token::KeywordReturn);
                 } else if cur_token_string == "int" {
                     tokens.push(Token::KeywordInt);
+                } else if cur_token_string == "if" {
+                    tokens.push(Token::KeywordIf);
+                } else if cur_token_string == "else" {
+                    tokens.push(Token::KeywordElse);
                 } else {
                     // try parse to int then its an int literal
                     if let Ok(i) = cur_token_string.parse::<i32>() {
@@ -38,73 +42,63 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
             // Lex the currect char (break chars)
             if white_space.contains(c) {
                 continue;
-            } else if c == '{' {
-                tokens.push(Token::OpenBrace);
-            } else if c == '}' {
-                tokens.push(Token::CloseBrace);
-            } else if c == '(' {
-                tokens.push(Token::OpenParen);
-            } else if c == ')' {
-                tokens.push(Token::CloseParen);
-            } else if c == ';' {
-                tokens.push(Token::SemiColon);
-            } else if c == '-' {
-                tokens.push(Token::OperatorMinus);
-            } else if c == '~' {
-                tokens.push(Token::OperatorComplement);
-            } else if c == '!' {
-                match c_i.peek() {
-                    Some('=') => {
-                        tokens.push(Token::OperatorNotEqual);
-                        c_i.next();
-                    }
-                    _ => tokens.push(Token::OperatorNegation),
-                }
-            } else if c == '+' {
-                tokens.push(Token::OperatorAddtion);
-            } else if c == '*' {
-                tokens.push(Token::OperatorMultiplication);
-            } else if c == '/' {
-                tokens.push(Token::OperatorDivision);
-            } else if c == '&' {
-                match c_i.peek() {
-                    Some('&') => {
-                        tokens.push(Token::OperatorAnd);
-                        c_i.next();
-                    }
+            } else {
+                match c {
+                    '{' => tokens.push(Token::OpenBrace),
+                    '}' => tokens.push(Token::CloseBrace),
+                    '(' => tokens.push(Token::OpenParen),
+                    ')' => tokens.push(Token::CloseParen),
+                    ';' => tokens.push(Token::SemiColon),
+                    '-' => tokens.push(Token::OperatorMinus),
+                    '~' => tokens.push(Token::OperatorComplement),
+                    '!' => match c_i.peek() {
+                        Some('=') => {
+                            tokens.push(Token::OperatorNotEqual);
+                            c_i.next();
+                        }
+                        _ => tokens.push(Token::OperatorNegation),
+                    },
+                    '+' => tokens.push(Token::OperatorAddtion),
+                    '*' => tokens.push(Token::OperatorMultiplication),
+                    '/' => tokens.push(Token::OperatorDivision),
+                    '&' => match c_i.peek() {
+                        Some('&') => {
+                            tokens.push(Token::OperatorAnd);
+                            c_i.next();
+                        }
+                        _ => return Err(LexError::NotImplemented),
+                    },
+                    '<' => match c_i.peek() {
+                        Some('=') => {
+                            tokens.push(Token::OperatorLessOrEqual);
+                            c_i.next();
+                        }
+                        _ => tokens.push(Token::OperatorLess),
+                    },
+                    '>' => match c_i.peek() {
+                        Some('=') => {
+                            tokens.push(Token::OperatorGreaterOrEqual);
+                            c_i.next();
+                        }
+                        _ => tokens.push(Token::OperatorGreater),
+                    },
+                    '|' => match c_i.peek() {
+                        Some('|') => {
+                            tokens.push(Token::OperatorOr);
+                            c_i.next();
+                        }
+                        _ => return Err(LexError::NotImplemented),
+                    },
+                    '=' => match c_i.peek() {
+                        Some('=') => {
+                            tokens.push(Token::OperatorEqual);
+                            c_i.next();
+                        }
+                        _ => tokens.push(Token::OperatorAssign),
+                    },
+                    ':' => tokens.push(Token::Colon),
+                    '?' => tokens.push(Token::QuestionMark),
                     _ => return Err(LexError::NotImplemented),
-                }
-            } else if c == '<' {
-                match c_i.peek() {
-                    Some('=') => {
-                        tokens.push(Token::OperatorLessOrEqual);
-                        c_i.next();
-                    }
-                    _ => tokens.push(Token::OperatorLess),
-                }
-            } else if c == '>' {
-                match c_i.peek() {
-                    Some('=') => {
-                        tokens.push(Token::OperatorGreaterOrEqual);
-                        c_i.next();
-                    }
-                    _ => tokens.push(Token::OperatorGreater),
-                }
-            } else if c == '|' {
-                match c_i.peek() {
-                    Some('|') => {
-                        tokens.push(Token::OperatorOr);
-                        c_i.next();
-                    }
-                    _ => return Err(LexError::NotImplemented),
-                }
-            } else if c == '=' {
-                match c_i.peek() {
-                    Some('=') => {
-                        tokens.push(Token::OperatorEqual);
-                        c_i.next();
-                    }
-                    _ => tokens.push(Token::OperatorAssign),
                 }
             }
         } else {

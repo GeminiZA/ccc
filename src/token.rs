@@ -24,6 +24,10 @@ pub enum Token {
     OperatorLessOrEqual,
     OperatorGreaterOrEqual,
     OperatorAssign,
+    KeywordIf,
+    KeywordElse,
+    QuestionMark,
+    Colon,
 }
 
 // // Incomplete debug formatter

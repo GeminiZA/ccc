@@ -1,11 +1,13 @@
 use crate::{token, Token};
 use core::slice::Iter;
-use std::ops::Mul;
+use std::{ops::Mul, os::linux::raw::stat};
 
 #[derive(Debug)]
 pub enum InFunction {
     ParseProgram,
     ParseFunction,
+    ParseBlockItem,
+    ParseDeclaration,
     ParseStatement,
     ParseExpression,
     ParseLogicalAndExpression,
@@ -35,11 +37,23 @@ pub enum FunctionType {
 }
 
 #[derive(Debug)]
+pub enum BlockItem {
+    Statement(Statement),
+    Declaration(Declaration),
+}
+
+#[derive(Debug)]
+pub struct Declaration {
+    m_id: String,
+    m_value: Option<Expression>,
+}
+
+#[derive(Debug)]
 pub struct Function {
     // <function> ::= "int" <id> "(" ")" "{" <statement> "}"
     pub m_type: FunctionType,
     pub m_id: String,
-    pub m_statements: Vec<Statement>,
+    pub m_items: Vec<BlockItem>,
 }
 
 #[derive(Debug)]
@@ -49,7 +63,11 @@ pub enum Statement {
     // | "int" <id> [ = <exp> ] ";"
     Return(Expression),
     Expression(Expression),
-    Declare { m_name: String, m_value: Option<Expression> },
+    If {
+        m_condition: Expression,
+        m_true_statement: Box<Statement>,
+        m_else_statement: Option<Box<Statement>>,
+    },
     // Other types if etc
 }
 
@@ -170,7 +188,7 @@ fn parse_function(
         Token::KeywordInt => Function {
             m_type: FunctionType::Int,
             m_id: String::new(),
-            m_statements: Vec::new(),
+            m_items: Vec::new(),
         },
         t => {
             return Err(ParseError::UnexpectedToken(
@@ -242,16 +260,91 @@ fn parse_function(
                 token_iter.next();
                 break;
             }
-            _ => {
-                function.m_statements.push(match parse_statement(token_iter) {
-                    Ok(s) => s,
-                    Err(e) => return Err(e),
-                })
-            }
+            _ => function.m_items.push(match parse_block_item(token_iter) {
+                Ok(s) => s,
+                Err(e) => return Err(e),
+            }),
         }
     }
 
     return Ok(function);
+}
+
+fn parse_block_item(
+    token_iter: &mut std::iter::Peekable<Iter<Token>>,
+) -> Result<BlockItem, ParseError> {
+    let mut block_item: BlockItem;
+
+    match token_iter.peek().cloned() {
+        Some(Token::KeywordInt) => {
+            block_item =
+                BlockItem::Declaration(match parse_declaration(token_iter) {
+                    Ok(d) => d,
+                    Err(e) => return Err(e),
+                })
+        }
+        Some(_) => {
+            block_item =
+                BlockItem::Statement(match parse_statement(token_iter) {
+                    Ok(s) => s,
+                    Err(e) => return Err(e),
+                })
+        }
+        None => return Err(ParseError::ExpectedToken),
+    }
+
+    return Ok(block_item);
+}
+
+fn parse_declaration(
+    token_iter: &mut std::iter::Peekable<Iter<Token>>,
+) -> Result<Declaration, ParseError> {
+    let mut declaration: Declaration;
+
+    let token = match token_iter.next() {
+        Some(t) => t,
+        None => return Err(ParseError::ExpectedToken),
+    };
+
+    let mut id: String;
+    let mut expression: Option<Expression>;
+
+    match token {
+        Token::KeywordInt => {
+            let next_token = token_iter.next();
+            match next_token {
+                Some(Token::Identifier(s)) => id = s.clone(),
+                Some(t) => {
+                    return Err(ParseError::UnexpectedToken(
+                        t.clone(),
+                        InFunction::ParseDeclaration,
+                    ))
+                }
+                None => return Err(ParseError::ExpectedToken),
+            };
+
+            match token_iter.peek().cloned() {
+                Some(Token::SemiColon) => expression = None,
+                Some(t) => {
+                    expression = match parse_expression(token_iter) {
+                        Ok(e) => Some(e),
+                        Err(e) => return Err(e),
+                    }
+                }
+                None => return Err(ParseError::ExpectedToken),
+            }
+
+            declaration = Declaration { m_id: id, m_value: expression };
+        }
+        t => {
+            return Err(ParseError::UnexpectedToken(
+                t.clone(),
+                InFunction::ParseDeclaration,
+            ))
+        }
+    }
+
+    return Ok(declaration);
 }
 
 fn parse_statement(
@@ -263,6 +356,61 @@ fn parse_statement(
     //Token Iter
 
     match token_iter.peek().cloned() {
+        Some(Token::KeywordIf) => {
+            token_iter.next();
+
+            match token_iter.next() {
+                Some(Token::OpenParen) => (),
+                Some(t) => {
+                    return Err(ParseError::UnexpectedToken(
+                        t.clone(),
+                        InFunction::ParseStatement,
+                    ))
+                }
+                None => return Err(ParseError::ExpectedToken),
+            }
+
+            let condition = match parse_expression(token_iter) {
+                Ok(e) => e,
+                Err(e) => return Err(e),
+            };
+
+            match token_iter.next() {
+                Some(Token::CloseParen) => (),
+                Some(t) => {
+                    return Err(ParseError::UnexpectedToken(
+                        t.clone(),
+                        InFunction::ParseStatement,
+                    ))
+                }
+                None => return Err(ParseError::ExpectedToken),
+            }
+
+            let true_statement = match parse_statement(token_iter) {
+                Ok(s) => Box::new(s),
+                Err(e) => return Err(e),
+            };
+
+            let mut else_statement: Option<Box<Statement>> = None;
+
+            match token_iter.peek().clone() {
+                Some(Token::KeywordElse) => {
+                    token_iter.next();
+                    else_statement = Some(match parse_statement(token_iter) {
+                        Ok(s) => Box::new(s),
+                        Err(e) => return Err(e),
+                    });
+                }
+                Some(_) => (),
+                None => return Err(ParseError::ExpectedToken),
+            }
+
+            statement = Statement::If {
+                m_condition: condition,
+                m_true_statement: true_statement,
+                m_else_statement: else_statement,
+            };
+        }
         Some(Token::KeywordReturn) => {
             token_iter.next();
             let expression = match parse_expression(token_iter) {
@@ -270,40 +418,6 @@ fn parse_statement(
                 Err(e) => return Err(e),
             };
             statement = Statement::Return(expression);
-        }
-        Some(Token::KeywordInt) => {
-            token_iter.next();
-            let token = match token_iter.next() {
-                Some(t) => t,
-                None => return Err(ParseError::ExpectedToken),
-            };
-            let name = match token {
-                Token::Identifier(s) => s,
-                t => {
-                    return Err(ParseError::UnexpectedToken(
-                        t.clone(),
-                        InFunction::ParseStatement,
-                    ))
-                }
-            };
-            let mut expression: Option<Expression>;
-            match token_iter.peek().cloned() {
-                Some(Token::SemiColon) => {
-                    expression = None;
-                }
-                Some(_) => {
-                    token_iter.next();
-                    expression = match parse_expression(token_iter) {
-                        Ok(e) => Some(e),
-                        Err(e) => return Err(e),
-                    }
-                }
-                None => return Err(ParseError::ExpectedToken),
-            }
-            statement = Statement::Declare {
-                m_name: name.clone(),
-                m_value: expression,
-            };
         }
         Some(_) => {
             statement =
