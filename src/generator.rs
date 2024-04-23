@@ -3,10 +3,11 @@ use std::panic::Location;
 use std::{collections::HashMap, task::Context};
 
 use crate::parser::{
-    AdditiveExpression, AdditiveOperator, EqualityExpression, EqualityOperator,
-    Expression, Factor, Function, LogicalAndExpression, LogicalOrExpresson,
-    MultiplicativeOperator, Program, RelationalExpression, RelationalOperator,
-    Statement, Term, UnaryOperator,
+    AdditiveExpression, AdditiveOperator, BlockItem, ConditionalExpression,
+    Declaration, EqualityExpression, EqualityOperator, Expression, Factor,
+    Function, LogicalAndExpression, LogicalOrExpresson, MultiplicativeOperator,
+    Program, RelationalExpression, RelationalOperator, Statement, Term,
+    UnaryOperator,
 };
 
 static mut LABEL_NUMBER: i32 = 0;
@@ -66,6 +67,136 @@ impl Generator {
         return label;
     }
 
+    pub fn generate(&mut self, program: &Program) -> String {
+        let mut gen_s: String = String::new();
+
+        gen_s.push_str(&self.generate_function(&program.m_function));
+
+        return gen_s;
+    }
+
+    fn generate_function(&mut self, function: &Function) -> String {
+        let mut gen_s: String = String::new();
+
+        self.open_scope();
+
+        gen_s.push_str(
+            format!(
+                ".globl {0}\n\
+                {0}:\n\
+                \tpushq\t%rbp\n\
+                \tmovq\t%rsp, %rbp\n",
+                function.m_id
+            )
+            .as_str(),
+        );
+
+        for block_item in &function.m_items {
+            gen_s.push_str(&self.generate_block_item(&block_item));
+        }
+
+        if !self.returned {
+            gen_s.push_str(
+                format!(
+                    "\tmovq\t%rbp, %rsp\n\
+                    \tpop \t%rbp\n\
+                    \tret\n"
+                )
+                .as_str(),
+            );
+        }
+
+        self.close_scope();
+
+        return gen_s;
+    }
+
+    fn generate_block_item(&mut self, block_item: &BlockItem) -> String {
+        let mut gen_s = String::new();
+        match &block_item {
+            BlockItem::Declaration(declaration) => {
+                gen_s.push_str(&self.generate_declaration(&declaration))
+            }
+            BlockItem::Statement(statement) => {
+                gen_s.push_str(&self.generate_statement(&statement))
+            }
+        }
+
+        return gen_s;
+    }
+
+    fn generate_statement(&mut self, statement: &Statement) -> String {
+        let mut gen_s: String = String::new();
+
+        match statement {
+            Statement::Expression(expression) => {
+                (gen_s.push_str(&self.generate_expression(&expression)));
+            }
+
+            Statement::Return(expr) => {
+                self.returned = true;
+                gen_s.push_str(&self.generate_expression(expr).as_str());
+                gen_s.push_str(
+                    format!(
+                        "\tmovq\t%rbp, %rsp\n\
+                        \tpop \t%rbp\n\
+                        \tret\n"
+                    )
+                    .as_str(),
+                );
+            }
+
+            Statement::If {
+                m_condition,
+                m_true_statement,
+                m_else_statement,
+            } => {
+                let false_label = &self.generate_label();
+                let end_label = &self.generate_label();
+                gen_s.push_str(&self.generate_expression(&m_condition));
+                gen_s.push_str(
+                    format!(
+                        "\tcmpq\t$0, %rax\n\
+                    je\t{0}\n",
+                        &false_label
+                    )
+                    .as_str(),
+                );
+                gen_s.push_str(&self.generate_statement(&m_true_statement));
+                gen_s.push_str(
+                    format!(
+                        "\tjmp\t\t{0}\n\
+                    {1}:\n",
+                        &end_label, &false_label,
+                    )
+                    .as_str(),
+                );
+                match m_else_statement {
+                    Some(s) => gen_s.push_str(&self.generate_statement(&s)),
+                    None => (),
+                }
+                gen_s.push_str(format!("{}:", &end_label).as_str());
+            }
+        }
+
+        return gen_s;
+    }
+
+    fn generate_declaration(&mut self, declaration: &Declaration) -> String {
+        let mut gen_s = String::new();
+
+        match &declaration.m_value {
+            Some(e) => {
+                gen_s.push_str(&self.generate_expression(&e));
+                gen_s.push_str("\tpushq\t%rax\n");
+            }
+            None => (),
+        }
+        self.add_var(&declaration.m_id);
+
+        return gen_s;
+    }
+
     fn generate_expression(&mut self, expression: &Expression) -> String {
         let mut gen_s = String::new();
         match expression {
@@ -79,9 +210,51 @@ impl Generator {
                     format!("\tmovq\t%rax, {}(%rbp)\n", var_offset).as_str(),
                 );
             }
-            Expression::Operation(logical_or_expression) => gen_s.push_str(
-                &self.generate_logical_or_expression(&logical_or_expression),
+            Expression::Operation(conditional_expression) => gen_s.push_str(
+                &self.generate_conditional_expression(&conditional_expression),
             ),
+        }
+
+        return gen_s;
+    }
+
+    fn generate_conditional_expression(
+        &mut self,
+        conditional_expression: &ConditionalExpression,
+    ) -> String {
+        let mut gen_s = String::new();
+
+        gen_s.push_str(&self.generate_logical_or_expression(
+            &conditional_expression.m_condition,
+        ));
+
+        match &conditional_expression.m_true {
+            Some(exp) => {
+                let false_lable = &self.generate_label();
+                let end_label = &self.generate_label();
+                gen_s.push_str(
+                    format!(
+                        "\tcmpq\t$0, %rax\n\
+                        \tje\t\t{}\n",
+                        &false_lable
+                    )
+                    .as_str(),
+                );
+                gen_s.push_str(&self.generate_expression(&exp));
+                gen_s.push_str(
+                    format!(
+                        "\tjmp\t\t{0}\n\
+                        {1}:\n",
+                        &end_label, &false_lable
+                    )
+                    .as_str(),
+                );
+                gen_s.push_str(&self.generate_conditional_expression(
+                    &conditional_expression.m_false.as_ref().unwrap(),
+                ));
+                gen_s.push_str(format!("{}:\n", &end_label).as_str());
+            }
+            None => (),
         }
 
         return gen_s;
@@ -348,85 +521,6 @@ impl Generator {
                 gen_s.push_str(&self.generate_expression(m_expression));
             }
         }
-
-        return gen_s;
-    }
-
-    fn generate_statement(&mut self, statement: &Statement) -> String {
-        let mut gen_s: String = String::new();
-
-        match statement {
-            Statement::Expression(expression) => {
-                (gen_s.push_str(&self.generate_expression(&expression)));
-            }
-            Statement::Declare { m_name, m_value } => {
-                match m_value {
-                    Some(e) => {
-                        gen_s.push_str(&self.generate_expression(&e));
-                        gen_s.push_str("\tpushq\t%rax\n");
-                    }
-                    None => (),
-                }
-                self.add_var(m_name);
-            }
-
-            Statement::Return(expr) => {
-                self.returned = true;
-                gen_s.push_str(&self.generate_expression(expr).as_str());
-                gen_s.push_str(
-                    format!(
-                        "\tmovq\t%rbp, %rsp\n\
-                        \tpop \t%rbp\n\
-                        \tret\n"
-                    )
-                    .as_str(),
-                );
-            }
-        }
-
-        return gen_s;
-    }
-
-    fn generate_function(&mut self, function: &Function) -> String {
-        let mut gen_s: String = String::new();
-
-        self.open_scope();
-
-        gen_s.push_str(
-            format!(
-                ".globl {0}\n\
-                {0}:\n\
-                \tpushq\t%rbp\n\
-                \tmovq\t%rsp, %rbp\n",
-                function.m_id
-            )
-            .as_str(),
-        );
-
-        for statement in &function.m_statements {
-            gen_s.push_str(&self.generate_statement(&statement));
-        }
-
-        if !self.returned {
-            gen_s.push_str(
-                format!(
-                    "\tmovq\t%rbp, %rsp\n\
-                    \tpop \t%rbp\n\
-                    \tret\n"
-                )
-                .as_str(),
-            );
-        }
-
-        self.close_scope();
-
-        return gen_s;
-    }
-
-    pub fn generate(&mut self, program: &Program) -> String {
-        let mut gen_s: String = String::new();
-
-        gen_s.push_str(&self.generate_function(&program.m_function));
 
         return gen_s;
     }
