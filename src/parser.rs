@@ -2,6 +2,8 @@ use crate::{token, Token};
 use core::slice::Iter;
 use std::{ops::Mul, os::linux::raw::stat};
 
+const DEBUG: bool = false;
+
 #[derive(Debug)]
 pub enum InFunction {
     ParseProgram,
@@ -63,7 +65,9 @@ pub enum Statement {
         m_true_statement: Box<Statement>,
         m_else_statement: Option<Box<Statement>>,
     },
-    // Other types if etc
+    Compound {
+        m_block_items: Vec<Box<BlockItem>>,
+    }, // Other types if etc
 }
 
 #[derive(Debug)]
@@ -173,12 +177,27 @@ pub enum Factor {
 }
 
 pub fn parse_program(tokens: &Vec<Token>) -> Result<Program, ParseError> {
+    if DEBUG {
+        println!("Paring program from: {:?}", &tokens);
+    }
+
     let mut token_iter = tokens.iter().peekable();
 
     let function = match parse_function(&mut token_iter) {
         Ok(func) => func,
         Err(e) => return Err(e),
     };
+
+    match token_iter.peek().cloned() {
+        Some(Token::EndOfFile) => (),
+        Some(t) => {
+            return Err(ParseError::UnexpectedToken(
+                t.clone(),
+                InFunction::ParseProgram,
+            ))
+        }
+        None => return Err(ParseError::Undefined),
+    }
 
     return Ok(Program { m_function: function });
 }
@@ -282,6 +301,9 @@ fn parse_block_item(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<BlockItem, ParseError> {
     let mut block_item: BlockItem;
+    if DEBUG {
+        println!("Parsing Block Item from: {:?}", &token_iter);
+    }
 
     match token_iter.peek().cloned() {
         Some(Token::KeywordInt) => {
@@ -301,6 +323,10 @@ fn parse_block_item(
         None => return Err(ParseError::ExpectedToken),
     }
 
+    if DEBUG {
+        println!("Returning Block Item: {:?}", &block_item);
+    }
+
     return Ok(block_item);
 }
 
@@ -309,7 +335,9 @@ fn parse_declaration(
 ) -> Result<Declaration, ParseError> {
     let mut declaration: Declaration;
 
-    // println!("Parsing declaration from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing declaration from {:?}", &token_iter);
+    }
 
     let token = match token_iter.next() {
         Some(t) => t,
@@ -372,18 +400,47 @@ fn parse_declaration(
         }
     }
 
+    if DEBUG {
+        println!("Returning Declaration: {:?}", &declaration);
+    }
+
     return Ok(declaration);
 }
 
 fn parse_statement(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Statement, ParseError> {
-    // // println!("Parsing statement from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing statement from {:?}", &token_iter);
+    }
     //Members
     let mut statement: Statement;
     //Token Iter
 
     match token_iter.peek().cloned() {
+        Some(Token::OpenBrace) => {
+            let mut block_items: Vec<Box<BlockItem>> = Vec::new();
+
+            token_iter.next();
+
+            while let peeked = token_iter.peek().cloned() {
+                match peeked {
+                    Some(Token::CloseBrace) => {
+                        token_iter.next();
+                        break;
+                    }
+                    Some(_) => {
+                        block_items.push(match parse_block_item(token_iter) {
+                            Ok(s) => Box::new(s),
+                            Err(e) => return Err(e),
+                        })
+                    }
+                    None => return Err(ParseError::ExpectedToken),
+                }
+            }
+
+            statement = Statement::Compound { m_block_items: block_items };
+        }
         Some(Token::KeywordIf) => {
             token_iter.next();
 
@@ -477,7 +534,9 @@ fn parse_statement(
         None => return Err(ParseError::ExpectedToken),
     }
 
-    // // println!("Returned statement: {:?}", statement);
+    if DEBUG {
+        println!("Returned statement: {:?}", statement);
+    }
 
     return Ok(statement);
 }
@@ -485,7 +544,9 @@ fn parse_statement(
 fn parse_expression(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Expression, ParseError> {
-    // // println!("Parsing Expression from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing Expression from {:?}", &token_iter);
+    }
     let mut expression;
 
     match token_iter.peek().cloned() {
@@ -507,7 +568,6 @@ fn parse_expression(
                     };
                 }
                 Some(t) => {
-                    // // println!("Token: {:?}", &t);
                     expression = Expression::Operation(
                         match parse_conditional_expression(token_iter) {
                             Ok(l) => l,
@@ -531,13 +591,19 @@ fn parse_expression(
         None => return Err(ParseError::ExpectedToken),
     }
 
+    if DEBUG {
+        println!("Returning Expression: {:?}", &expression);
+    }
+
     return Ok(expression);
 }
 
 fn parse_conditional_expression(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<ConditionalExpression, ParseError> {
-    // // println!("Parsing conditional expression from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing conditional expression from {:?}", &token_iter);
+    }
 
     let mut conditional_expression;
     let exp = match parse_logical_or_expression(token_iter) {
@@ -585,7 +651,12 @@ fn parse_conditional_expression(
         None => return Err(ParseError::ExpectedToken),
     }
 
-    // // println!("Returning conditional expression: {:?}", &conditional_expression);
+    if DEBUG {
+        println!(
+            "Returning conditional expression: {:?}",
+            &conditional_expression
+        );
+    }
 
     return Ok(conditional_expression);
 }
@@ -593,7 +664,9 @@ fn parse_conditional_expression(
 fn parse_logical_or_expression(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<LogicalOrExpresson, ParseError> {
-    // // println!("Parsing Logical Or Expression from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing Logical Or Expression from {:?}", &token_iter);
+    }
     let mut logical_or_expression =
         match parse_logical_and_expression(token_iter) {
             Ok(l_a_e) => LogicalOrExpresson {
@@ -618,7 +691,12 @@ fn parse_logical_or_expression(
         }
     }
 
-    // // println!("Returning Logical Or Expression: {:?}", &logical_or_expression);
+    if DEBUG {
+        println!(
+            "Returning Logical Or Expression: {:?}",
+            &logical_or_expression
+        );
+    }
 
     return Ok(logical_or_expression);
 }
@@ -626,8 +704,11 @@ fn parse_logical_or_expression(
 fn parse_logical_and_expression(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<LogicalAndExpression, ParseError> {
-    // // println!("Parsing Logical And Expression from {:?}", &token_iter);
-    let mut local_and_expression = match parse_equality_expression(token_iter) {
+    if DEBUG {
+        println!("Parsing Logical And Expression from {:?}", &token_iter);
+    }
+    let mut logical_and_expression = match parse_equality_expression(token_iter)
+    {
         Ok(e_e) => {
             LogicalAndExpression { m_first: Box::new(e_e), m_rest: Vec::new() }
         }
@@ -638,7 +719,7 @@ fn parse_logical_and_expression(
         match next {
             Token::OperatorAnd => {
                 token_iter.next();
-                local_and_expression.m_rest.push(
+                logical_and_expression.m_rest.push(
                     match parse_equality_expression(token_iter) {
                         Ok(e_e) => e_e,
                         Err(e) => return Err(e),
@@ -649,13 +730,22 @@ fn parse_logical_and_expression(
         }
     }
 
-    return Ok(local_and_expression);
+    if DEBUG {
+        println!(
+            "Returning logical and expression: {:?}",
+            &logical_and_expression
+        );
+    }
+
+    return Ok(logical_and_expression);
 }
 
 fn parse_equality_expression(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<EqualityExpression, ParseError> {
-    // // println!("Parsing Equality Expression from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing Equality Expression from {:?}", &token_iter);
+    }
     let mut equality_expression = match parse_relational_expression(token_iter)
     {
         Ok(r_e) => {
@@ -696,7 +786,9 @@ fn parse_equality_expression(
 fn parse_relational_expression(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<RelationalExpression, ParseError> {
-    // // println!("Parsing Relational Expression from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing Relational Expression from {:?}", &token_iter);
+    }
     let mut relational_expression = match parse_additive_expression(token_iter)
     {
         Ok(a_e) => {
@@ -757,9 +849,10 @@ fn parse_relational_expression(
 fn parse_additive_expression(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<AdditiveExpression, ParseError> {
-    // // println!("Parsing Additive Expression from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing Additive Expression from {:?}", &token_iter);
+    }
     //Members
-    // println!("Parsing Expression from {:?}", &token_iter);
     let mut additive_expression = match parse_term(token_iter) {
         Ok(t) => {
             AdditiveExpression { m_first_term: Box::new(t), m_rest: Vec::new() }
@@ -768,7 +861,6 @@ fn parse_additive_expression(
     };
 
     while let Some(&next) = token_iter.peek() {
-        // println!("next token: {:?}", &next);
         match next {
             Token::OperatorAddtion => {
                 token_iter.next();
@@ -800,7 +892,9 @@ fn parse_additive_expression(
 fn parse_term(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Term, ParseError> {
-    // println!("Parsing term from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing term from {:?}", &token_iter);
+    }
     let mut term = match parse_factor(token_iter) {
         Ok(f) => Term { m_first_factor: Box::new(f), m_rest: Vec::new() },
         Err(e) => return Err(e),
@@ -832,7 +926,9 @@ fn parse_term(
         }
     }
 
-    // println!("returning term {:?}", term);
+    if DEBUG {
+        println!("returning term {:?}", term);
+    }
 
     return Ok(term);
 }
@@ -840,7 +936,9 @@ fn parse_term(
 fn parse_factor(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Factor, ParseError> {
-    // println!("Parsing factor from {:?}", &token_iter);
+    if DEBUG {
+        println!("Parsing factor from {:?}", &token_iter);
+    }
     let mut factor: Factor;
     let mut cur_token = match token_iter.next() {
         Some(t) => t,
@@ -911,7 +1009,9 @@ fn parse_factor(
         }
     }
 
-    // println!("returning factor {:?}", factor);
+    if DEBUG {
+        println!("returning factor {:?}", factor);
+    }
 
     return Ok(factor);
 }

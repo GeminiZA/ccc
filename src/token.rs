@@ -28,6 +28,7 @@ pub enum Token {
     KeywordElse,
     QuestionMark,
     Colon,
+    EndOfFile,
 }
 
 // // Incomplete debug formatter

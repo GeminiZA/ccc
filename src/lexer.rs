@@ -105,5 +105,6 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
             cur_token_string.push(c);
         }
     }
+    tokens.push(Token::EndOfFile);
     return Ok(tokens);
 }

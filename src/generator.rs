@@ -34,11 +34,13 @@ impl Generator {
     }
 
     fn add_var(&mut self, var_name: &String) {
-        match self.query_var(&var_name) {
-            Some(_) => panic!("Variable already declared!"),
+        let mut current_context = self.context.last_mut().unwrap();
+        match current_context.get(var_name) {
+            Some(v) => {
+                panic!("Variable {} already declared in this scope!", &var_name)
+            }
             None => (),
         }
-        let mut current_context = self.context.last_mut().unwrap();
         current_context.insert(var_name.clone(), self.stack_index);
         self.stack_index = self.stack_index - 8;
     }
@@ -52,13 +54,14 @@ impl Generator {
         return None;
     }
 
-    fn close_scope(&mut self) {
+    fn close_scope(&mut self) -> usize {
         let cur_context = match self.context.pop() {
             Some(c) => c,
-            None => return,
+            None => return 0,
         };
         let size = cur_context.len();
-        self.stack_index = self.stack_index + size as i32;
+        self.stack_index = self.stack_index + 8 * size as i32;
+        return size;
     }
 
     fn generate_label(&mut self) -> String {
@@ -100,6 +103,7 @@ impl Generator {
                 format!(
                     "\tmovq\t%rbp, %rsp\n\
                     \tpop \t%rbp\n\
+                    \tmovq\t$0, %rax\n\
                     \tret\n"
                 )
                 .as_str(),
@@ -129,6 +133,20 @@ impl Generator {
         let mut gen_s: String = String::new();
 
         match statement {
+            Statement::Compound { m_block_items } => {
+                self.open_scope();
+
+                for block_item in m_block_items {
+                    gen_s.push_str(&self.generate_block_item(block_item));
+                }
+
+                let variables_to_deallocate = self.close_scope();
+
+                gen_s.push_str(
+                    format!("\taddq\t${}, %rsp\n", variables_to_deallocate * 8)
+                        .as_str(),
+                );
+            }
             Statement::Expression(expression) => {
                 (gen_s.push_str(&self.generate_expression(&expression)));
             }
@@ -460,7 +478,7 @@ impl Generator {
         gen_s.push_str(&self.generate_factor(&term.m_first_factor));
 
         for next_op in &term.m_rest {
-            gen_s.push_str("\rpush\t%rax\n");
+            gen_s.push_str("\tpush\t%rax\n");
             gen_s.push_str(&self.generate_factor(&next_op.1));
             gen_s.push_str("\tpop\t%rcx\n");
             match next_op.0 {
@@ -471,7 +489,7 @@ impl Generator {
                     gen_s.push_str(
                         "\tmovq\t%rax, %rbx\n\
                     \tmovq\t%rcx, %rax\n\
-                    \tcdq\n\
+                    \tcqo\n\
                     \tidivq\t%rbx\n",
                     ); // mov rax to rbx; mov rcx to rax; sign extend rax to rdx; calc [rdx:rax]/rbx
                        // stores quotient in rax and remainder in rdx // rax / rbx store in rax
@@ -506,7 +524,7 @@ impl Generator {
                         gen_s.push_str(s);
                     }
                     UnaryOperator::Negation => {
-                        let s = "\tcmpq\t%rax\n\
+                        let s = "\tcmpq\t$0, %rax\n\
                     \tmovq\t$0, %rax\n\
                     \tsete %al\n";
                         gen_s.push_str(s);
