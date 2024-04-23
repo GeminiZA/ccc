@@ -68,6 +68,28 @@ pub enum Statement {
     Compound {
         m_block_items: Vec<Box<BlockItem>>,
     }, // Other types if etc
+    For {
+        m_inititial_expression: Option<Expression>,
+        m_condition: Expression,
+        m_post_expression: Option<Expression>,
+        m_statement: Box<Statement>,
+    },
+    ForDecl {
+        m_initial_declaration: Declaration,
+        m_condition: Expression,
+        m_post_expression: Option<Expression>,
+        m_statement: Box<Statement>,
+    },
+    While {
+        m_condition: Expression,
+        m_statement: Box<Statement>,
+    },
+    Do {
+        m_statement: Box<Statement>,
+        m_condition: Expression,
+    },
+    Break,
+    Continue,
 }
 
 #[derive(Debug)]
@@ -418,6 +440,156 @@ fn parse_statement(
     //Token Iter
 
     match token_iter.peek().cloned() {
+        Some(Token::KeywordFor) => {
+            let mut initial_declaration: Option<Declaration> = None;
+            let mut initial_exp: Option<Expression> = None;
+            let mut condition: Expression;
+            let mut post_expression: Option<Expression> = None;
+            let mut loop_statement: Statement;
+
+            token_iter.next();
+            match token_iter.next() {
+                Some(Token::OpenParen) => (),
+                Some(t) => {
+                    return Err(ParseError::UnexpectedToken(
+                        t.clone(),
+                        InFunction::ParseStatement,
+                    ))
+                }
+                None => return Err(ParseError::ExpectedToken),
+            }
+            match token_iter.peek().cloned() {
+                Some(t) => {
+                    expression = match parse_expression(token_iter) {
+                        Ok(e) => e,
+                        Err(e) => return Err(e),
+                    };
+                    match token_iter.next() {
+                        Some(Token::SemiColon) => (),
+                        Some(t) => {
+                            return Err(ParseError::UnexpectedToken(
+                                t.clone(),
+                                InFunction::ParseStatement,
+                            ))
+                        }
+                        None => return Err(ParseError::ExpectedToken),
+                    }
+                }
+                Some(Token::KeywordInt) => {
+                    initial_declaration = match parse_declaration(token_iter) {
+                        Ok(e) => Some(e),
+                        Err(e) => return Err(e),
+                    }
+                }
+                Some(Token::SemiColon) => (),
+                None => return Err(ParseError::ExpectedToken),
+            }
+
+            // then condition
+
+            match token_iter.peek().cloned() {
+                Some(t) => {
+                    condition = match parse_expression(token_iter) {
+                        Ok(e) => e,
+                        Err(e) => return Err(e),
+                    };
+                    match token_iter.peek().cloned() {
+                        Some(Token::SemiColon) => (),
+                        None => return Err(ParseError::ExpectedToken),
+                        Some(t) => {
+                            return Err(ParseError::UnexpectedToken(
+                                t.clone(),
+                                InFunction::ParseStatement,
+                            ))
+                        }
+                    }
+                }
+                Some(Token::SemiColon) => {
+                    token_iter.next();
+                    condition = parse_expresiion(
+                        vec![Token::IntLiteral(1)].inter().peekable(),
+                    )
+                }
+                None => return Err(ParseError::ExpectedToken),
+            }
+
+            // then post-expression
+            match token_iter.peek().cloned() {
+                Some(t) => {
+                    post_expression = match parse_expression(token_iter) {
+                        Ok(e) => Some(e),
+                        Err(e) => return Err(e),
+                    }
+                }
+                Some(Token::CloseParen) => (),
+                None => return Err(ParseError::ExpectedToken),
+            }
+
+            match token_iter.next() {
+                Some(Token::CloseParen) => (),
+                Some(t) => {
+                    return Err(ParseError::UnexpectedToken(
+                        t.clone(),
+                        InFunction::ParseStatement,
+                    ))
+                }
+                None => return Err(ParseError::ExpectedToken),
+            }
+
+            loop_statement = match parse_statement(token_iter) {
+                Ok(s) => s,
+                Err(e) => return Err(e),
+            };
+
+            match initial_exp {
+                Some(e) => {
+                    statement = Statement::For {
+                        m_inititial_expression: Some(e),
+                        m_condition: condition,
+                        m_post_expression: post_expression,
+                        m_statement: loop_statement,
+                    }
+                }
+                None => match initial_declaration {
+                    Some(e) => {
+                        statement = Statement::ForDecl {
+                            m_initial_declaration: Some(e),
+                            m_condition: condition,
+                            m_post_expression: post_expression,
+                            m_statement: loop_statement,
+                        }
+                    }
+                    None => {
+                        statement = Statement::For {
+                            m_inititial_expression: initial_exp,
+                            m_condition: condition,
+                            m_post_expression: post_expression,
+                            m_statement: loop_statement,
+                        }
+                    }
+                },
+            }
+        }
+
+        Some(Token::KeywordWhile) => {
+            let mut condition: Expression;
+            let mut loop_statement: Statement;
+
+            token_iter.next();
+            match token_iter.next() {
+                Some(Token::OpenParen) => (),
+                Some(t) => {
+                    return Err(ParseError::UnexpectedToken(
+                        t.clone(),
+                        InFunction::ParseStatement,
+                    ))
+                }
+                None => return Err(ParseError::ExpectedToken),
+            }
+        }
+        Some(Token::KeywordDo) => (),
+        Some(Token::KeywordBreak) => statement = Statement::Break,
+        Some(Token::KeywordContinue) => statement = Statement::Continue,
         Some(Token::OpenBrace) => {
             let mut block_items: Vec<Box<BlockItem>> = Vec::new();
 

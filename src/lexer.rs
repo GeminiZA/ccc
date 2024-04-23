@@ -28,6 +28,21 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
                     tokens.push(Token::KeywordIf);
                 } else if cur_token_string == "else" {
                     tokens.push(Token::KeywordElse);
+                }
+                if cur_token_string == "for" {
+                    tokens.push(Token::KeywordFor);
+                }
+                if cur_token_string == "while" {
+                    tokens.push(Token::KeywordWhile);
+                }
+                if cur_token_string == "do" {
+                    tokens.push(Token::KeywordDo);
+                }
+                if cur_token_string == "break" {
+                    tokens.push(Token::KeywordBreak);
+                }
+                if cur_token_string == "continue" {
+                    tokens.push(Token::KeywordContinue);
                 } else {
                     // try parse to int then its an int literal
                     if let Ok(i) = cur_token_string.parse::<i32>() {

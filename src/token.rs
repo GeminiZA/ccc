@@ -29,6 +29,11 @@ pub enum Token {
     QuestionMark,
     Colon,
     EndOfFile,
+    KeywordFor,
+    KeywordWhile,
+    KeywordDo,
+    KeywordBreak,
+    KeywordContinue,
 }
 
 // // Incomplete debug formatter
