@@ -15,6 +15,7 @@ pub enum Token {
     OperatorAddtion,
     OperatorMultiplication,
     OperatorDivision,
+    OperatorModulo,
     OperatorAnd,
     OperatorOr,
     OperatorEqual,
@@ -34,6 +35,7 @@ pub enum Token {
     KeywordDo,
     KeywordBreak,
     KeywordContinue,
+    Comma,
 }
 
 // // Incomplete debug formatter

@@ -11,7 +11,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
 
     let mut cur_token_string = String::new();
 
-    let break_chars = " \t\n{}();-~!+*/<>&|=:?";
+    let break_chars = " \t\n{}();-~!+*/%<>&|=:?,";
     let white_space = " \t\n";
 
     let mut i = 0;
@@ -28,20 +28,15 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
                     tokens.push(Token::KeywordIf);
                 } else if cur_token_string == "else" {
                     tokens.push(Token::KeywordElse);
-                }
-                if cur_token_string == "for" {
+                } else if cur_token_string == "for" {
                     tokens.push(Token::KeywordFor);
-                }
-                if cur_token_string == "while" {
+                } else if cur_token_string == "while" {
                     tokens.push(Token::KeywordWhile);
-                }
-                if cur_token_string == "do" {
+                } else if cur_token_string == "do" {
                     tokens.push(Token::KeywordDo);
-                }
-                if cur_token_string == "break" {
+                } else if cur_token_string == "break" {
                     tokens.push(Token::KeywordBreak);
-                }
-                if cur_token_string == "continue" {
+                } else if cur_token_string == "continue" {
                     tokens.push(Token::KeywordContinue);
                 } else {
                     // try parse to int then its an int literal
@@ -76,6 +71,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
                     '+' => tokens.push(Token::OperatorAddtion),
                     '*' => tokens.push(Token::OperatorMultiplication),
                     '/' => tokens.push(Token::OperatorDivision),
+                    '%' => tokens.push(Token::OperatorModulo),
                     '&' => match c_i.peek() {
                         Some('&') => {
                             tokens.push(Token::OperatorAnd);
@@ -113,6 +109,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
                     },
                     ':' => tokens.push(Token::Colon),
                     '?' => tokens.push(Token::QuestionMark),
+                    ',' => tokens.push(Token::Comma),
                     _ => return Err(LexError::NotImplemented),
                 }
             }

@@ -12,7 +12,7 @@ mod parser;
 mod token;
 
 fn main() {
-    let debug = false;
+    let debug = true;
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -128,5 +128,5 @@ fn main() {
         }
     }
 
-    println!("Successfully compiled:");
+    //println!("Successfully compiled:");
 }
