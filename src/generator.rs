@@ -12,13 +12,18 @@ use crate::parser::{
 
 static mut LABEL_NUMBER: i32 = 0;
 
+pub struct LoopContext {
+    start_label: String,
+    end_label: String,
+    scope_count: usize,
+}
+
 pub struct Generator {
     label_number: i32,
     context: Vec<HashMap<String, i32>>,
     stack_index: i32,
     returned: bool,
-    continue_labels: Vec<String>,
-    break_labels: Vec<String>,
+    loop_contexts: Vec<LoopContext>,
 }
 
 impl Generator {
@@ -28,9 +33,37 @@ impl Generator {
             context: Vec::new(),
             stack_index: -8,
             returned: false,
-            continue_labels: Vec::new(),
-            break_labels: Vec::new(),
+            loop_contexts: Vec::new(),
         }
+    }
+
+    fn enter_loop(&mut self, start_label: String, end_label: String) {
+        let scope_count = self.context.len();
+        self.loop_contexts.push(LoopContext {
+            start_label,
+            end_label,
+            scope_count,
+        });
+    }
+
+    fn last_end_label(self) {
+        if let Some(&loop_context) = self.loop_contexts.last() {
+            return loop_context.start_label.clone();
+        } else {
+            panic!("Got label not in a loop context")
+        }
+    }
+
+    fn last_start_label(self) {
+        if let Some(&loop_context) = self.loop_contexts.last() {
+            return loop_context.start_label.clone();
+        } else {
+            panic!("Got label not in a loop context")
+        }
+    }
+
+    fn leave_loop(&mut self) {
+        self.loop_contexts.pop();
     }
 
     fn open_scope(&mut self) {
@@ -65,7 +98,7 @@ impl Generator {
         };
         let size = cur_context.len();
         self.stack_index = self.stack_index + 8 * size as i32;
-        return size;
+        return size * 8;
     }
 
     fn generate_label(&mut self) -> String {
@@ -137,50 +170,64 @@ impl Generator {
         let mut gen_s: String = String::new();
 
         match statement {
-            Statement::Continue => match self.continue_labels.last() {
-                Some(continue_label) => {
+            Statement::Continue => {
+                if let Some(loop_context) = self.loop_contexts.last() {
+                    let size_to_deallocate: usize = 0;
+                    while self.context.len() > loop_context.scope_count {
+                        size_to_deallocate += self.close_scope();
+                    }
                     gen_s.push_str(
-                        format!("\tjmp\t{}\n", continue_label).as_str(),
+                        format!(
+                            "\taddq\t${}, %rsp\n",
+                            variables_to_deallocate * 8
+                        )
+                        .as_str(),
                     );
+                } else {
+                    panic("continue statement not in loop context");
                 }
-                None => panic!("Continue not in a loop!"),
-            },
-            Statement::Break => match self.break_labels.last() {
-                Some(break_label) => {
-                    gen_s
-                        .push_str(format!("\tjmp\t{}\n", break_label).as_str());
+            }
+            Statement::Break => {
+                if let Some(loop_context) = self.loop_contexts.last() {
+                    let size_to_deallocate: usize = 0;
+                    while self.context.len() > loop_context.scope_count {
+                        size_to_deallocate += self.close_scope();
+                    }
+                    gen_s.push_str(
+                        format!(
+                            "\taddq\t${}, %rsp\n",
+                            variables_to_deallocate * 8
+                        )
+                        .as_str(),
+                    );
+                } else {
+                    panic("break statement not in loop context");
                 }
-                None => panic!("Continue not in a loop!"),
-            },
+            }
             Statement::ForDecl {
                 m_initial_declaration,
                 m_condition,
                 m_post_expression,
                 m_statement,
             } => {
-                let cur_scope_len = self.context.len();
+                self.enter_loop(self.generate_label(), self.generate_label());
                 self.open_scope();
                 let condition_label = self.generate_label();
-                let post_expression_label = self.generate_label();
-                self.continue_labels.push(post_expression_label.clone());
-                let end_loop_label = self.generate_label();
-                self.break_labels.push(end_loop_label.clone());
                 gen_s.push_str(
                     &self.generate_declaration(&m_initial_declaration),
                 );
                 gen_s.push_str(format!("{}:\n", &condition_label).as_str());
-                gen_s.push_str(&self.generate_expression(&m_condition));
                 gen_s.push_str(
                     format!(
                         "\tcmpq\t$0, %rax\n\
                     je\t{0}\n",
-                        &end_loop_label
+                        &self.last_end_label()
                     )
                     .as_str(),
                 );
                 gen_s.push_str(&self.generate_statement(&m_statement));
                 gen_s.push_str(
-                    format!("{}:\n", &post_expression_label).as_str(),
+                    format!("{}:\n", &self.last_start_label()).as_str(),
                 );
                 match m_post_expression {
                     Some(e) => gen_s.push_str(&self.generate_expression(&e)),
@@ -189,14 +236,13 @@ impl Generator {
                 gen_s.push_str(
                     format!("\tjmp\t{}\n", &condition_label).as_str(),
                 );
-                gen_s.push_str(format!("{}:\n", &end_loop_label).as_str());
-                self.continue_labels.pop();
-                self.break_labels.pop();
-                let variables_to_deallocate = self.close_scope();
-
                 gen_s.push_str(
-                    format!("\taddq\t${}, %rsp\n", variables_to_deallocate * 8)
-                        .as_str(),
+                    format!("{}:\n", &self.last_end_label()).as_str(),
+                );
+                self.leave_loop();
+                let size_to_deallocate = self.close_scope();
+                gen_s.push_str(
+                    format!("\taddq\t${}, %rsp\n", size_to_deallocate).as_str(),
                 );
             }
 
@@ -206,30 +252,24 @@ impl Generator {
                 m_post_expression,
                 m_statement,
             } => {
-                let cur_scope_len = self.context.len();
+                self.enter_loop(self.generate_label(), self.generate_label());
                 self.open_scope();
                 let condition_label = self.generate_label();
-                let post_expression_label = self.generate_label();
-                self.continue_labels.push(post_expression_label.clone());
-                let end_loop_label = self.generate_label();
-                self.break_labels.push(end_loop_label.clone());
-                match m_inititial_expression {
-                    Some(e) => gen_s.push_str(&self.generate_expression(&e)),
-                    None => (),
-                }
+                gen_s.push_str(
+                    &self.generate_expression(&m_inititial_expression),
+                );
                 gen_s.push_str(format!("{}:\n", &condition_label).as_str());
-                gen_s.push_str(&self.generate_expression(&m_condition));
                 gen_s.push_str(
                     format!(
                         "\tcmpq\t$0, %rax\n\
                     je\t{0}\n",
-                        &end_loop_label
+                        &self.last_end_label()
                     )
                     .as_str(),
                 );
                 gen_s.push_str(&self.generate_statement(&m_statement));
                 gen_s.push_str(
-                    format!("{}:\n", &post_expression_label).as_str(),
+                    format!("{}:\n", &self.last_start_label()).as_str(),
                 );
                 match m_post_expression {
                     Some(e) => gen_s.push_str(&self.generate_expression(&e)),
@@ -238,76 +278,74 @@ impl Generator {
                 gen_s.push_str(
                     format!("\tjmp\t{}\n", &condition_label).as_str(),
                 );
-                gen_s.push_str(format!("{}:\n", &end_loop_label).as_str());
-                self.continue_labels.pop();
-                self.break_labels.pop();
-                let variables_to_deallocate = self.close_scope();
-
                 gen_s.push_str(
-                    format!("\taddq\t${}, %rsp\n", variables_to_deallocate * 8)
-                        .as_str(),
+                    format!("{}:\n", &self.last_end_label()).as_str(),
+                );
+                self.leave_loop();
+                let size_to_deallocate = self.close_scope();
+                gen_s.push_str(
+                    format!("\taddq\t${}, %rsp\n", size_to_deallocate).as_str(),
                 );
             }
             Statement::While { m_condition, m_statement } => {
-                let cur_scope_len = self.context.len();
+                self.enter_loop(self.generate_label(), self.generate_label());
                 self.open_scope();
-                let condition_label = self.generate_label();
-                self.continue_labels.push(condition_label.clone());
-                let end_loop_label = self.generate_label();
-                self.break_labels.push(end_loop_label.clone());
-                gen_s.push_str(format!("{}:\n", &condition_label).as_str());
+                gen_s.push_str(
+                    format!("{}:\n", &self.last_start_label()).as_str(),
+                );
                 gen_s.push_str(&self.generate_expression(&m_condition));
                 gen_s.push_str(
                     format!(
                         "\tcmpq\t$0, %rax\n\
                     je\t{0}\n",
-                        &end_loop_label
+                        &self.last_end_label()
                     )
                     .as_str(),
                 );
                 gen_s.push_str(&self.generate_statement(&m_statement));
                 gen_s.push_str(
-                    format!("\tjmp\t{}\n", &condition_label).as_str(),
+                    format!("\tjmp\t{}\n", &self.last_start_label()).as_str(),
                 );
-                gen_s.push_str(format!("{}:\n", &end_loop_label).as_str());
-                self.continue_labels.pop();
-                self.break_labels.pop();
-                let variables_to_deallocate = self.close_scope();
+                gen_s.push_str(
+                    format!("{}:\n", &self.last_end_label()).as_str(),
+                );
+
+                self.leave_loop();
+                let size_to_deallocate = self.close_scope();
 
                 gen_s.push_str(
-                    format!("\taddq\t${}, %rsp\n", variables_to_deallocate * 8)
-                        .as_str(),
+                    format!("\taddq\t${}, %rsp\n", size_to_deallocate).as_str(),
                 );
             }
             Statement::Do { m_statement, m_condition } => {
-                let cur_scope_len = self.context.len();
+                self.enter_loop(self.generate_label(), self.generate_label());
                 self.open_scope();
-                let start_loop_label = self.generate_label();
-                self.continue_labels.push(start_loop_label.clone());
-                let end_loop_label = self.generate_label();
-                self.break_labels.push(end_loop_label.clone());
-                gen_s.push_str(format!("{}:\n", &start_loop_label).as_str());
+                gen_s.push_str(
+                    format!("{}:\n", &self.last_start_label()).as_str(),
+                );
                 gen_s.push_str(&self.generate_statement(&m_statement));
                 gen_s.push_str(&self.generate_expression(&m_condition));
                 gen_s.push_str(
                     format!(
                         "\tcmpq\t$0, %rax\n\
                     je\t{0}\n",
-                        &end_loop_label
+                        &self.last_end_label()
                     )
                     .as_str(),
                 );
                 gen_s.push_str(
-                    format!("\tjmp\t{}\n", &start_loop_label).as_str(),
+                    format!("\tjmp\t{}\n", &self.last_start_label()).as_str(),
                 );
-                gen_s.push_str(format!("{}:\n", &end_loop_label).as_str());
-                self.continue_labels.pop();
-                self.break_labels.pop();
-                let variables_to_deallocate = self.close_scope();
+                gen_s.push_str(
+                    format!("{}:\n", &self.last_end_label()).as_str(),
+                );
+
+                self.leave_loop();
+
+                let size_to_deallocate = self.close_scope();
 
                 gen_s.push_str(
-                    format!("\taddq\t${}, %rsp\n", variables_to_deallocate * 8)
-                        .as_str(),
+                    format!("\taddq\t${}, %rsp\n", size_to_deallocate).as_str(),
                 );
             }
             Statement::Compound { m_block_items } => {
@@ -317,11 +355,10 @@ impl Generator {
                     gen_s.push_str(&self.generate_block_item(block_item));
                 }
 
-                let variables_to_deallocate = self.close_scope();
+                let size_to_deallocate = self.close_scope();
 
                 gen_s.push_str(
-                    format!("\taddq\t${}, %rsp\n", variables_to_deallocate * 8)
-                        .as_str(),
+                    format!("\taddq\t${}, %rsp\n", size_to_deallocate).as_str(),
                 );
             }
             Statement::Expression(expression) => match expression {

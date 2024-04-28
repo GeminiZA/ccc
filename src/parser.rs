@@ -1359,7 +1359,18 @@ fn parse_factor(
     };
 
     match cur_token {
-        Token::Identifier(s) => factor = Factor::Variable { m_var: s.clone() },
+        Token::Identifier(s) => {
+            match token_iter.peek().cloned() {
+                Some(t) => 
+            factor = Factor::Variable { m_var: s.clone() },
+            Some(Token::OpenParen) => {
+                token_iter.next();
+                
+                
+                factor = Factor::FunCall { m_id: (), m_arguments:  }; }
+            None => return Err(ParseError::ExpectedToken),
+            };
+        }
         Token::OpenParen => {
             factor = Factor::Braced {
                 m_expression: match parse_expression(token_iter) {
