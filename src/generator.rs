@@ -46,7 +46,7 @@ impl Generator {
         });
     }
 
-    fn last_end_label(self) {
+    fn last_end_label(self) -> String {
         if let Some(&loop_context) = self.loop_contexts.last() {
             return loop_context.start_label.clone();
         } else {
@@ -54,7 +54,7 @@ impl Generator {
         }
     }
 
-    fn last_start_label(self) {
+    fn last_start_label(self) -> String {
         if let Some(&loop_context) = self.loop_contexts.last() {
             return loop_context.start_label.clone();
         } else {
@@ -172,36 +172,30 @@ impl Generator {
         match statement {
             Statement::Continue => {
                 if let Some(loop_context) = self.loop_contexts.last() {
-                    let size_to_deallocate: usize = 0;
+                    let mut size_to_deallocate: usize = 0;
                     while self.context.len() > loop_context.scope_count {
                         size_to_deallocate += self.close_scope();
                     }
                     gen_s.push_str(
-                        format!(
-                            "\taddq\t${}, %rsp\n",
-                            variables_to_deallocate * 8
-                        )
-                        .as_str(),
+                        format!("\taddq\t${}, %rsp\n", size_to_deallocate * 8)
+                            .as_str(),
                     );
                 } else {
-                    panic("continue statement not in loop context");
+                    panic!("continue statement not in loop context");
                 }
             }
             Statement::Break => {
                 if let Some(loop_context) = self.loop_contexts.last() {
-                    let size_to_deallocate: usize = 0;
+                    let mut size_to_deallocate: usize = 0;
                     while self.context.len() > loop_context.scope_count {
                         size_to_deallocate += self.close_scope();
                     }
                     gen_s.push_str(
-                        format!(
-                            "\taddq\t${}, %rsp\n",
-                            variables_to_deallocate * 8
-                        )
-                        .as_str(),
+                        format!("\taddq\t${}, %rsp\n", size_to_deallocate * 8)
+                            .as_str(),
                     );
                 } else {
-                    panic("break statement not in loop context");
+                    panic!("break statement not in loop context");
                 }
             }
             Statement::ForDecl {
@@ -255,9 +249,10 @@ impl Generator {
                 self.enter_loop(self.generate_label(), self.generate_label());
                 self.open_scope();
                 let condition_label = self.generate_label();
-                gen_s.push_str(
-                    &self.generate_expression(&m_inititial_expression),
-                );
+                match m_inititial_expression {
+                    Some(e) => gen_s.push_str(&self.generate_expression(&e)),
+                    None => (),
+                }
                 gen_s.push_str(format!("{}:\n", &condition_label).as_str());
                 gen_s.push_str(
                     format!(
@@ -320,9 +315,9 @@ impl Generator {
             Statement::Do { m_statement, m_condition } => {
                 self.enter_loop(self.generate_label(), self.generate_label());
                 self.open_scope();
-                gen_s.push_str(
-                    format!("{}:\n", &self.last_start_label()).as_str(),
-                );
+                let start_label = self.last_start_label();
+                let end_label = self.last_end_label();
+                gen_s.push_str(format!("{}:\n", &start_label).as_str());
                 gen_s.push_str(&self.generate_statement(&m_statement));
                 gen_s.push_str(&self.generate_expression(&m_condition));
                 gen_s.push_str(

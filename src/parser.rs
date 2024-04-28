@@ -1,4 +1,4 @@
-use crate::{token, Token};
+use crate::Token;
 use core::slice::Iter;
 
 const DEBUG: bool = false;
@@ -24,7 +24,6 @@ pub enum InFunction {
 pub enum ParseError {
     UnexpectedToken(Token, InFunction),
     ExpectedToken,
-    Undefined,
 }
 
 #[derive(Debug)]
@@ -209,11 +208,6 @@ pub fn parse_program(tokens: &Vec<Token>) -> Result<Program, ParseError> {
 
     let mut token_iter = tokens.iter().peekable();
 
-    let function = match parse_function(&mut token_iter) {
-        Ok(func) => func,
-        Err(e) => return Err(e),
-    };
-
     while let Some(&next) = token_iter.peek() {
         match next {
             Token::EndOfFile => {
@@ -241,7 +235,7 @@ fn parse_function(
     }
     //Token Iterator
 
-    let mut function = match token {
+    let mut function = match token_iter.next() {
         Some(Token::KeywordInt) => Function {
             m_type: FunctionType::Int,
             m_params: Vec::new(),
@@ -281,7 +275,7 @@ fn parse_function(
 
     match token_iter.peek().cloned() {
         Some(Token::CloseParen) => (),
-        Some(t) => {
+        Some(_) => {
             match token_iter.next() {
                 Some(Token::KeywordInt) => (),
                 Some(t) => {
@@ -307,7 +301,7 @@ fn parse_function(
         None => return Err(ParseError::ExpectedToken),
     }
 
-    while let Some(&next) = token_iter.peek().cloned() {
+    while let Some(next) = token_iter.peek().cloned() {
         match next {
             Token::Comma => {
                 token_iter.next();
@@ -384,7 +378,7 @@ fn parse_function(
 fn parse_block_item(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<BlockItem, ParseError> {
-    let mut block_item: BlockItem;
+    let block_item: BlockItem;
     if DEBUG {
         println!(
             "Parsing Block Item from: {:?}",
@@ -420,7 +414,7 @@ fn parse_block_item(
 fn parse_declaration(
     token_iter: &mut std::iter::Peekable<Iter<Token>>,
 ) -> Result<Declaration, ParseError> {
-    let mut declaration: Declaration;
+    let declaration: Declaration;
 
     if DEBUG {
         println!(
@@ -434,8 +428,8 @@ fn parse_declaration(
         None => return Err(ParseError::ExpectedToken),
     };
 
-    let mut id: String;
-    let mut expression: Option<Expression>;
+    let id: String;
+    let expression: Option<Expression>;
 
     match token {
         Token::KeywordInt => {
@@ -507,16 +501,16 @@ fn parse_statement(
         );
     }
     //Members
-    let mut statement: Statement;
+    let statement: Statement;
     //Token Iter
 
     match token_iter.peek().cloned() {
         Some(Token::KeywordFor) => {
             let mut initial_declaration: Option<Declaration> = None;
             let mut initial_exp: Option<Expression> = None;
-            let mut condition: Expression;
+            let condition: Expression;
             let mut post_expression: Option<Expression> = None;
-            let mut loop_statement: Statement;
+            let loop_statement: Statement;
 
             token_iter.next();
             match token_iter.next() {
@@ -539,7 +533,7 @@ fn parse_statement(
                 Some(Token::SemiColon) => {
                     token_iter.next();
                 }
-                Some(t) => {
+                Some(_) => {
                     initial_exp = match parse_expression(token_iter) {
                         Ok(e) => Some(e),
                         Err(e) => return Err(e),
@@ -563,12 +557,12 @@ fn parse_statement(
             match token_iter.peek().cloned() {
                 Some(Token::SemiColon) => {
                     token_iter.next();
-                    let mut new_tokens =
+                    let new_tokens =
                         vec![Token::IntLiteral(1), Token::SemiColon];
                     let mut new_iter = new_tokens.iter().peekable();
                     condition = parse_expression(&mut new_iter).unwrap()
                 }
-                Some(t) => {
+                Some(_) => {
                     condition = match parse_expression(token_iter) {
                         Ok(e) => e,
                         Err(e) => return Err(e),
@@ -592,7 +586,7 @@ fn parse_statement(
             // then post-expression
             match token_iter.peek().cloned() {
                 Some(Token::CloseParen) => (),
-                Some(t) => {
+                Some(_) => {
                     post_expression = match parse_expression(token_iter) {
                         Ok(e) => Some(e),
                         Err(e) => return Err(e),
@@ -648,8 +642,8 @@ fn parse_statement(
         }
 
         Some(Token::KeywordWhile) => {
-            let mut condition: Expression;
-            let mut loop_statement: Statement;
+            let condition: Expression;
+            let loop_statement: Statement;
 
             token_iter.next();
             match token_iter.next() {
@@ -690,8 +684,8 @@ fn parse_statement(
             }
         }
         Some(Token::KeywordDo) => {
-            let mut condition: Expression;
-            let mut loop_statement: Statement;
+            let condition: Expression;
+            let loop_statement: Statement;
 
             token_iter.next();
 
@@ -787,19 +781,16 @@ fn parse_statement(
 
             token_iter.next();
 
-            while let peeked = token_iter.peek().cloned() {
+            while let Some(peeked) = token_iter.peek().cloned() {
                 match peeked {
-                    Some(Token::CloseBrace) => {
+                    Token::CloseBrace => {
                         token_iter.next();
                         break;
                     }
-                    Some(_) => {
-                        block_items.push(match parse_block_item(token_iter) {
-                            Ok(s) => Box::new(s),
-                            Err(e) => return Err(e),
-                        })
-                    }
-                    None => return Err(ParseError::ExpectedToken),
+                    _ => block_items.push(match parse_block_item(token_iter) {
+                        Ok(s) => Box::new(s),
+                        Err(e) => return Err(e),
+                    }),
                 }
             }
 
@@ -926,7 +917,7 @@ fn parse_expression(
             token_iter.clone().take(5).collect::<Vec<_>>()
         );
     }
-    let mut expression;
+    let expression;
 
     match token_iter.peek().cloned() {
         Some(Token::Identifier(s)) => {
@@ -946,7 +937,7 @@ fn parse_expression(
                         m_value: Box::new(value),
                     };
                 }
-                Some(t) => {
+                Some(_) => {
                     expression = Expression::Operation(
                         match parse_conditional_expression(token_iter) {
                             Ok(l) => l,
@@ -987,7 +978,7 @@ fn parse_conditional_expression(
         );
     }
 
-    let mut conditional_expression;
+    let conditional_expression;
     let exp = match parse_logical_or_expression(token_iter) {
         Ok(e) => e,
         Err(e) => return Err(e),
@@ -1352,8 +1343,8 @@ fn parse_factor(
             token_iter.clone().take(5).collect::<Vec<_>>()
         );
     }
-    let mut factor: Factor;
-    let mut cur_token = match token_iter.next() {
+    let factor: Factor;
+    let cur_token = match token_iter.next() {
         Some(t) => t,
         None => return Err(ParseError::ExpectedToken),
     };
@@ -1361,14 +1352,52 @@ fn parse_factor(
     match cur_token {
         Token::Identifier(s) => {
             match token_iter.peek().cloned() {
-                Some(t) => 
-            factor = Factor::Variable { m_var: s.clone() },
-            Some(Token::OpenParen) => {
-                token_iter.next();
-                
-                
-                factor = Factor::FunCall { m_id: (), m_arguments:  }; }
-            None => return Err(ParseError::ExpectedToken),
+                Some(Token::OpenParen) => {
+                    let mut arguments: Vec<Expression> = Vec::new();
+                    token_iter.next();
+                    match token_iter.peek().cloned() {
+                        Some(Token::CloseParen) => (),
+                        Some(_) => {
+                            arguments.push(
+                                match parse_expression(token_iter) {
+                                    Ok(e) => e,
+                                    Err(e) => return Err(e),
+                                },
+                            );
+                        }
+                        None => return Err(ParseError::ExpectedToken),
+                    }
+                    while let Some(&next) = token_iter.peek() {
+                        match next {
+                            Token::CloseParen => {
+                                token_iter.next();
+                                break;
+                            }
+                            Token::Comma => {
+                                token_iter.next();
+                                arguments.push(
+                                    match parse_expression(token_iter) {
+                                        Ok(e) => e,
+                                        Err(e) => return Err(e),
+                                    },
+                                );
+                            }
+                            t => {
+                                return Err(ParseError::UnexpectedToken(
+                                    t.clone(),
+                                    InFunction::ParseFactor,
+                                ))
+                            }
+                        }
+                    }
+
+                    factor = Factor::FunCall {
+                        m_id: s.clone(),
+                        m_arguments: arguments,
+                    };
+                }
+                Some(_) => factor = Factor::Variable { m_var: s.clone() },
+                None => return Err(ParseError::ExpectedToken),
             };
         }
         Token::OpenParen => {
