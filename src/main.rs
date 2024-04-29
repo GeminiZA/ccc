@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use token::Token;
 
-mod generator;
+//mod generator;
+mod analyzer;
 mod lexer;
 mod parser;
 mod token;
@@ -74,59 +75,67 @@ fn main() {
         println!("AST: {:?}", program);
     }
 
-    let mut generator = generator::Generator::new();
+    let mut analyzer = analyzer::Analyzer::new();
 
-    let s_program = generator.generate(&program);
-
-    match write(&out_path, &s_program) {
-        Ok(_) => (),
-        Err(e) => {
-            println!("{:?}", e);
-            return;
-        }
-    }
+    let valid = analyzer.analyze_program(program);
 
     if debug {
-        println!("{:?}", s_program);
+        println!("Validate: {:?}", &valid);
     }
 
-    let compile = true;
+    // let mut generator = generator::Generator::new();
 
-    if compile {
-        let dir = in_path.parent().unwrap_or(Path::new(""));
-        let gcc_out_path = dir.join(&program_name);
+    // let s_program = generator.generate(&program);
 
-        let gcc_output = Command::new("gcc")
-            .arg(&out_path)
-            .arg("-o")
-            .arg(&gcc_out_path)
-            .output()
-            .expect("Failed to execute gcc");
+    // match write(&out_path, &s_program) {
+    // Ok(_) => (),
+    // Err(e) => {
+    // println!("{:?}", e);
+    // return;
+    // }
+    // }
 
-        if !gcc_output.status.success() {
-            eprintln!(
-                "gcc failed with output: \n{}",
-                String::from_utf8_lossy(&gcc_output.stderr)
-            );
-            return;
-        }
-    }
+    // if debug {
+    // println!("{:?}", s_program);
+    // }
 
-    let remove = !debug;
+    // let compile = true;
 
-    if remove {
-        let rm_output = Command::new("rm")
-            .arg(&out_path)
-            .output()
-            .expect("Failed to execute rm");
+    // if compile {
+    // let dir = in_path.parent().unwrap_or(Path::new(""));
+    // let gcc_out_path = dir.join(&program_name);
 
-        if !rm_output.status.success() {
-            eprintln!(
-                "Failed to delete assembly file: rm failed with: \n{}",
-                String::from_utf8_lossy(&rm_output.stderr)
-            );
-        }
-    }
+    // let gcc_output = Command::new("gcc")
+    // .arg(&out_path)
+    // .arg("-o")
+    // .arg(&gcc_out_path)
+    // .output()
+    // .expect("Failed to execute gcc");
+
+    // if !gcc_output.status.success() {
+    // eprintln!(
+    // "gcc failed with output: \n{}",
+    // String::from_utf8_lossy(&gcc_output.stderr)
+    // );
+    // return;
+    // }
+    // }
+
+    // let remove = !debug;
+
+    // if remove {
+    // let rm_output = Command::new("rm")
+    // .arg(&out_path)
+    // .output()
+    // .expect("Failed to execute rm");
+
+    // if !rm_output.status.success() {
+    // eprintln!(
+    // "Failed to delete assembly file: rm failed with: \n{}",
+    // String::from_utf8_lossy(&rm_output.stderr)
+    // );
+    // }
+    // }
 
     //println!("Successfully compiled:");
 }

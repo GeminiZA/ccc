@@ -38,12 +38,17 @@ pub enum FunctionType {
 }
 
 #[derive(Debug)]
+pub enum VarType {
+    Int,
+}
+
+#[derive(Debug)]
 pub struct Function {
     // <function> ::= "int" <id> "(" ")" "{" <statement> "}"
     pub m_type: FunctionType,
-    pub m_params: Vec<String>, // Change to struct when adding other types
+    pub m_params: Vec<(VarType, String)>, // Change to struct when adding other types
     pub m_id: String,
-    pub m_items: Vec<BlockItem>,
+    pub m_items: Option<Vec<BlockItem>>,
 }
 
 #[derive(Debug)]
@@ -68,7 +73,7 @@ pub enum Statement {
         m_block_items: Vec<Box<BlockItem>>,
     }, // Other types if etc
     For {
-        m_inititial_expression: Option<Expression>,
+        m_initial_expression: Option<Expression>,
         m_condition: Expression,
         m_post_expression: Option<Expression>,
         m_statement: Box<Statement>,
@@ -214,10 +219,18 @@ pub fn parse_program(tokens: &Vec<Token>) -> Result<Program, ParseError> {
                 token_iter.next();
                 break;
             }
-            _ => functions.push(match parse_function(&mut token_iter) {
-                Ok(s) => s,
-                Err(e) => return Err(e),
-            }),
+            Token::KeywordInt => {
+                functions.push(match parse_function(&mut token_iter) {
+                    Ok(s) => s,
+                    Err(e) => return Err(e),
+                })
+            }
+            t => {
+                return Err(ParseError::UnexpectedToken(
+                    t.clone(),
+                    InFunction::ParseProgram,
+                ))
+            }
         }
     }
 
@@ -240,7 +253,7 @@ fn parse_function(
             m_type: FunctionType::Int,
             m_params: Vec::new(),
             m_id: String::new(),
-            m_items: Vec::new(),
+            m_items: None,
         },
         Some(t) => {
             return Err(ParseError::UnexpectedToken(
@@ -276,8 +289,9 @@ fn parse_function(
     match token_iter.peek().cloned() {
         Some(Token::CloseParen) => (),
         Some(_) => {
+            let var_type: VarType;
             match token_iter.next() {
-                Some(Token::KeywordInt) => (),
+                Some(Token::KeywordInt) => var_type = VarType::Int,
                 Some(t) => {
                     return Err(ParseError::UnexpectedToken(
                         t.clone(),
@@ -296,7 +310,7 @@ fn parse_function(
                 }
                 None => return Err(ParseError::ExpectedToken),
             };
-            function.m_params.push(id.clone());
+            function.m_params.push((var_type, id.clone()));
         }
         None => return Err(ParseError::ExpectedToken),
     }
@@ -306,8 +320,10 @@ fn parse_function(
             Token::Comma => {
                 token_iter.next();
 
+                let var_type: VarType;
+
                 match token_iter.next() {
-                    Some(Token::KeywordInt) => (),
+                    Some(Token::KeywordInt) => var_type = VarType::Int,
                     Some(t) => {
                         return Err(ParseError::UnexpectedToken(
                             t.clone(),
@@ -326,7 +342,7 @@ fn parse_function(
                     }
                     None => return Err(ParseError::ExpectedToken),
                 };
-                function.m_params.push(id.clone());
+                function.m_params.push((var_type, id.clone()));
             }
             Token::CloseParen => {
                 token_iter.next();
@@ -341,10 +357,10 @@ fn parse_function(
         }
     }
 
-    let mut has_block: bool = false;
+    let mut block: Option<Vec<BlockItem>> = None;
 
     match token_iter.next() {
-        Some(Token::OpenBrace) => has_block = true,
+        Some(Token::OpenBrace) => block = Some(Vec::new()),
         Some(Token::SemiColon) => (),
         Some(t) => {
             return Err(ParseError::UnexpectedToken(
@@ -355,22 +371,27 @@ fn parse_function(
         None => return Err(ParseError::ExpectedToken),
     }
 
-    if has_block {
-        while let Some(&next) = token_iter.peek() {
-            match next {
-                Token::CloseBrace => {
-                    token_iter.next();
-                    break;
-                }
-                _ => {
-                    function.m_items.push(match parse_block_item(token_iter) {
-                        Ok(s) => s,
-                        Err(e) => return Err(e),
-                    })
+    match block {
+        Some(_) => {
+            while let Some(&next) = token_iter.peek() {
+                match next {
+                    Token::CloseBrace => {
+                        token_iter.next();
+                        break;
+                    }
+                    _ => block.as_mut().unwrap().push(
+                        match parse_block_item(token_iter) {
+                            Ok(s) => s,
+                            Err(e) => return Err(e),
+                        },
+                    ),
                 }
             }
         }
+        None => (),
     }
+
+    function.m_items = block;
 
     return Ok(function);
 }
@@ -614,7 +635,7 @@ fn parse_statement(
             match initial_exp {
                 Some(e) => {
                     statement = Statement::For {
-                        m_inititial_expression: Some(e),
+                        m_initial_expression: Some(e),
                         m_condition: condition,
                         m_post_expression: post_expression,
                         m_statement: Box::new(loop_statement),
@@ -631,7 +652,7 @@ fn parse_statement(
                     }
                     None => {
                         statement = Statement::For {
-                            m_inititial_expression: initial_exp,
+                            m_initial_expression: initial_exp,
                             m_condition: condition,
                             m_post_expression: post_expression,
                             m_statement: Box::new(loop_statement),
