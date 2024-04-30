@@ -7,7 +7,7 @@ use std::process::Command;
 use token::Token;
 
 //mod generator;
-mod analyzer;
+mod analyser;
 mod lexer;
 mod parser;
 mod token;
@@ -75,16 +75,11 @@ fn main() {
         println!("AST: {:?}", program);
     }
 
-    let mut analyzer = analyzer::Analyzer::new();
+    let mut analyser = analyser::Analyser::new();
 
-    let valid = analyzer.analyze_program(&program);
-
-    if debug {
-        println!("Validate: {:?}", &valid);
-    }
-
-    if !valid {
-        panic!("Semantic Analysis failed");
+    match analyser.analyse_program(&program) {
+        Ok(_) => println!("Valid"),
+        Err(e) => println!("{:?}", e),
     }
 
     // let mut generator = generator::Generator::new();
