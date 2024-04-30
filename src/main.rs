@@ -77,10 +77,14 @@ fn main() {
 
     let mut analyzer = analyzer::Analyzer::new();
 
-    let valid = analyzer.analyze_program(program);
+    let valid = analyzer.analyze_program(&program);
 
     if debug {
         println!("Validate: {:?}", &valid);
+    }
+
+    if !valid {
+        panic!("Semantic Analysis failed");
     }
 
     // let mut generator = generator::Generator::new();

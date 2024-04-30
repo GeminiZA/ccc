@@ -32,12 +32,12 @@ pub struct Program {
     pub m_functions: Vec<Function>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FunctionType {
     Int,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum VarType {
     Int,
 }
