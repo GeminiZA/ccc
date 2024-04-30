@@ -6,8 +6,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use token::Token;
 
-//mod generator;
 mod analyser;
+mod generator;
 mod lexer;
 mod parser;
 mod token;
@@ -82,59 +82,59 @@ fn main() {
         Err(e) => println!("{:?}", e),
     }
 
-    // let mut generator = generator::Generator::new();
+    let mut generator = generator::Generator::new();
 
-    // let s_program = generator.generate(&program);
+    let s_program = generator.generate(&program);
 
-    // match write(&out_path, &s_program) {
-    // Ok(_) => (),
-    // Err(e) => {
-    // println!("{:?}", e);
-    // return;
-    // }
-    // }
+    match write(&out_path, &s_program) {
+        Ok(_) => (),
+        Err(e) => {
+            println!("{:?}", e);
+            return;
+        }
+    }
 
-    // if debug {
-    // println!("{:?}", s_program);
-    // }
+    if debug {
+        println!("{:?}", s_program);
+    }
 
-    // let compile = true;
+    let compile = true;
 
-    // if compile {
-    // let dir = in_path.parent().unwrap_or(Path::new(""));
-    // let gcc_out_path = dir.join(&program_name);
+    if compile {
+        let dir = in_path.parent().unwrap_or(Path::new(""));
+        let gcc_out_path = dir.join(&program_name);
 
-    // let gcc_output = Command::new("gcc")
-    // .arg(&out_path)
-    // .arg("-o")
-    // .arg(&gcc_out_path)
-    // .output()
-    // .expect("Failed to execute gcc");
+        let gcc_output = Command::new("gcc")
+            .arg(&out_path)
+            .arg("-o")
+            .arg(&gcc_out_path)
+            .output()
+            .expect("Failed to execute gcc");
 
-    // if !gcc_output.status.success() {
-    // eprintln!(
-    // "gcc failed with output: \n{}",
-    // String::from_utf8_lossy(&gcc_output.stderr)
-    // );
-    // return;
-    // }
-    // }
+        if !gcc_output.status.success() {
+            eprintln!(
+                "gcc failed with output: \n{}",
+                String::from_utf8_lossy(&gcc_output.stderr)
+            );
+            return;
+        }
+    }
 
-    // let remove = !debug;
+    let remove = !debug;
 
-    // if remove {
-    // let rm_output = Command::new("rm")
-    // .arg(&out_path)
-    // .output()
-    // .expect("Failed to execute rm");
+    if remove {
+        let rm_output = Command::new("rm")
+            .arg(&out_path)
+            .output()
+            .expect("Failed to execute rm");
 
-    // if !rm_output.status.success() {
-    // eprintln!(
-    // "Failed to delete assembly file: rm failed with: \n{}",
-    // String::from_utf8_lossy(&rm_output.stderr)
-    // );
-    // }
-    // }
+        if !rm_output.status.success() {
+            eprintln!(
+                "Failed to delete assembly file: rm failed with: \n{}",
+                String::from_utf8_lossy(&rm_output.stderr)
+            );
+        }
+    }
 
-    //println!("Successfully compiled:");
+    println!("Successfully compiled:");
 }

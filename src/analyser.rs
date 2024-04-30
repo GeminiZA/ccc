@@ -47,10 +47,7 @@ pub struct Analyser {
 
 impl Analyser {
     pub fn new() -> Self {
-        let map: HashMap<String, Symbol> = HashMap::new();
-        let mut vec: Vec<HashMap<String, Symbol>> = Vec::new();
-        vec.push(map);
-        Analyser { context: vec }
+        Analyser { context: Vec::new() }
     }
 
     fn open_scope(&mut self) {
@@ -78,7 +75,7 @@ impl Analyser {
                     }
                     Symbol::Var(_) => return None,
                 },
-                None => return None,
+                None => (),
             }
         }
         return None;
@@ -88,9 +85,10 @@ impl Analyser {
         &mut self,
         program: &Program,
     ) -> Result<bool, AnalysisError> {
+        self.open_scope();
         for func in &program.m_functions {
             match self.analyse_function(&func) {
-                Ok(b) => (),
+                Ok(_) => (),
                 Err(e) => return Err(e),
             }
         }
@@ -122,6 +120,8 @@ impl Analyser {
             }
         }
 
+        self.open_scope();
+
         match &function.m_items {
             Some(b) => {
                 for item in b {
@@ -133,6 +133,8 @@ impl Analyser {
             }
             None => (),
         }
+
+        self.close_scope();
 
         return Ok(true);
     }
@@ -205,12 +207,14 @@ impl Analyser {
                 }
             }
             Statement::Compound { m_block_items } => {
+                self.open_scope();
                 for block_item in m_block_items {
                     match self.analyse_block_item(block_item) {
                         Ok(_) => (),
                         Err(e) => return Err(e),
                     }
                 }
+                self.close_scope();
                 return Ok(true);
             }
             Statement::For {
@@ -219,6 +223,7 @@ impl Analyser {
                 m_post_expression,
                 m_statement,
             } => {
+                self.open_scope();
                 match m_initial_expression {
                     None => (),
                     Some(e) => {
@@ -236,11 +241,15 @@ impl Analyser {
                     },
                 }
                 match self.analyse_expression(&m_condition) {
-                    Ok(_) => {
-                        return self.analyse_statement(&m_statement);
-                    }
+                    Ok(_) => (),
                     Err(e) => return Err(e),
                 }
+                match self.analyse_statement(&m_statement) {
+                    Ok(_) => (),
+                    Err(e) => return Err(e),
+                }
+                self.close_scope();
+                return Ok(true);
             }
             Statement::ForDecl {
                 m_initial_declaration,
@@ -248,6 +257,7 @@ impl Analyser {
                 m_post_expression,
                 m_statement,
             } => {
+                self.open_scope();
                 match m_post_expression {
                     None => (),
                     Some(e) => match self.analyse_expression(&e) {
@@ -263,21 +273,34 @@ impl Analyser {
                     Ok(_) => (),
                     Err(e) => return Err(e),
                 }
-                return self.analyse_statement(&m_statement);
+                match self.analyse_statement(&m_statement) {
+                    Ok(_) => (),
+                    Err(e) => return Err(e),
+                }
+                self.close_scope();
+                return Ok(true);
             }
             Statement::While { m_condition, m_statement } => {
                 match self.analyse_expression(&m_condition) {
                     Ok(_) => (),
                     Err(e) => return Err(e),
                 }
-                return self.analyse_statement(m_statement);
+                match self.analyse_statement(m_statement) {
+                    Ok(_) => (),
+                    Err(e) => return Err(e),
+                }
+                return Ok(true);
             }
             Statement::Do { m_statement, m_condition } => {
                 match self.analyse_expression(&m_condition) {
                     Ok(_) => (),
                     Err(e) => return Err(e),
                 }
-                return self.analyse_statement(m_statement);
+                match self.analyse_statement(m_statement) {
+                    Ok(_) => (),
+                    Err(e) => return Err(e),
+                }
+                return Ok(true);
             }
             Statement::Break => return Ok(true),
             Statement::Continue => return Ok(true),

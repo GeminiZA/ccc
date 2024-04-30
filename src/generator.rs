@@ -12,6 +12,7 @@ use crate::parser::{
 
 static mut LABEL_NUMBER: i32 = 0;
 
+#[derive(Debug, Clone)]
 pub struct LoopContext {
     start_label: String,
     end_label: String,
@@ -21,6 +22,7 @@ pub struct LoopContext {
 pub struct Generator {
     label_number: i32,
     context: Vec<HashMap<String, i32>>,
+    manual_vars_size: Vec<i32>,
     stack_index: i32,
     returned: bool,
     loop_contexts: Vec<LoopContext>,
@@ -31,6 +33,7 @@ impl Generator {
         Generator {
             label_number: 0,
             context: Vec::new(),
+            manual_vars_size: Vec::new(),
             stack_index: -8,
             returned: false,
             loop_contexts: Vec::new(),
@@ -46,16 +49,16 @@ impl Generator {
         });
     }
 
-    fn last_end_label(self) -> String {
-        if let Some(&loop_context) = self.loop_contexts.last() {
-            return loop_context.start_label.clone();
+    fn last_end_label(&self) -> String {
+        if let Some(&loop_context) = &self.loop_contexts.last().as_ref() {
+            return loop_context.end_label.clone();
         } else {
             panic!("Got label not in a loop context")
         }
     }
 
-    fn last_start_label(self) -> String {
-        if let Some(&loop_context) = self.loop_contexts.last() {
+    fn last_start_label(&self) -> String {
+        if let Some(&loop_context) = self.loop_contexts.last().as_ref() {
             return loop_context.start_label.clone();
         } else {
             panic!("Got label not in a loop context")
@@ -68,18 +71,30 @@ impl Generator {
 
     fn open_scope(&mut self) {
         self.context.push(HashMap::new());
+        self.manual_vars_size.push(0);
     }
 
     fn add_var(&mut self, var_name: &String) {
-        let mut current_context = self.context.last_mut().unwrap();
+        let current_context = self.context.last_mut().unwrap();
         match current_context.get(var_name) {
-            Some(v) => {
+            Some(_) => {
                 panic!("Variable {} already declared in this scope!", &var_name)
             }
             None => (),
         }
         current_context.insert(var_name.clone(), self.stack_index);
         self.stack_index = self.stack_index - 8;
+    }
+
+    fn add_manual_var(&mut self, var_name: &String, rbp_offest: i32) {
+        let current_context = self.context.last_mut().unwrap();
+        match current_context.get(var_name) {
+            Some(_) => {
+                panic!("Variable {} already declared in this scope!", &var_name)
+            }
+            None => (),
+        }
+        current_context.insert(var_name.clone(), rbp_offest);
     }
 
     fn query_var(&mut self, var_name: &String) -> Option<i32> {
@@ -91,13 +106,14 @@ impl Generator {
         return None;
     }
 
-    fn close_scope(&mut self) -> usize {
+    fn close_scope(&mut self) -> i32 {
         let cur_context = match self.context.pop() {
             Some(c) => c,
             None => return 0,
         };
-        let size = cur_context.len();
-        self.stack_index = self.stack_index + 8 * size as i32;
+        let man_size = self.manual_vars_size.pop().unwrap();
+        let size = cur_context.len() as i32 - man_size;
+        self.stack_index = self.stack_index + 8 * size;
         return size * 8;
     }
 
@@ -110,7 +126,9 @@ impl Generator {
     pub fn generate(&mut self, program: &Program) -> String {
         let mut gen_s: String = String::new();
 
-        gen_s.push_str(&self.generate_function(&program.m_function));
+        for function in &program.m_functions {
+            gen_s.push_str(&self.generate_function(&function));
+        }
 
         return gen_s;
     }
@@ -118,36 +136,47 @@ impl Generator {
     fn generate_function(&mut self, function: &Function) -> String {
         let mut gen_s: String = String::new();
 
-        self.open_scope();
+        match &function.m_items {
+            Some(items) => {
+                self.open_scope();
 
-        gen_s.push_str(
-            format!(
-                ".globl {0}\n\
+                gen_s.push_str(
+                    format!(
+                        ".globl {0}\n\
                 {0}:\n\
                 \tpushq\t%rbp\n\
                 \tmovq\t%rsp, %rbp\n",
-                function.m_id
-            )
-            .as_str(),
-        );
+                        function.m_id
+                    )
+                    .as_str(),
+                );
 
-        for block_item in &function.m_items {
-            gen_s.push_str(&self.generate_block_item(&block_item));
-        }
+                let mut cur_offset = 16;
 
-        if !self.returned {
-            gen_s.push_str(
-                format!(
-                    "\tmovq\t%rbp, %rsp\n\
+                for param in &function.m_params {
+                    self.add_manual_var(&param.1, cur_offset);
+                    cur_offset += 8;
+                }
+
+                for block_item in items {
+                    gen_s.push_str(&self.generate_block_item(&block_item));
+                }
+                if !self.returned {
+                    gen_s.push_str(
+                        format!(
+                            "\tmovq\t%rbp, %rsp\n\
                     \tpop \t%rbp\n\
                     \tmovq\t$0, %rax\n\
                     \tret\n"
-                )
-                .as_str(),
-            );
-        }
+                        )
+                        .as_str(),
+                    );
+                }
 
-        self.close_scope();
+                self.close_scope();
+            }
+            None => (),
+        }
 
         return gen_s;
     }
@@ -171,8 +200,8 @@ impl Generator {
 
         match statement {
             Statement::Continue => {
-                if let Some(loop_context) = self.loop_contexts.last() {
-                    let mut size_to_deallocate: usize = 0;
+                if let Some(loop_context) = self.loop_contexts.last().cloned() {
+                    let mut size_to_deallocate: i32 = 0;
                     while self.context.len() > loop_context.scope_count {
                         size_to_deallocate += self.close_scope();
                     }
@@ -185,8 +214,8 @@ impl Generator {
                 }
             }
             Statement::Break => {
-                if let Some(loop_context) = self.loop_contexts.last() {
-                    let mut size_to_deallocate: usize = 0;
+                if let Some(loop_context) = self.loop_contexts.last().cloned() {
+                    let mut size_to_deallocate: i32 = 0;
                     while self.context.len() > loop_context.scope_count {
                         size_to_deallocate += self.close_scope();
                     }
@@ -204,13 +233,16 @@ impl Generator {
                 m_post_expression,
                 m_statement,
             } => {
-                self.enter_loop(self.generate_label(), self.generate_label());
+                let start_label = self.generate_label();
+                let end_label = self.generate_label();
+                self.enter_loop(start_label, end_label);
                 self.open_scope();
                 let condition_label = self.generate_label();
                 gen_s.push_str(
                     &self.generate_declaration(&m_initial_declaration),
                 );
                 gen_s.push_str(format!("{}:\n", &condition_label).as_str());
+                gen_s.push_str(&self.generate_expression(&m_condition));
                 gen_s.push_str(
                     format!(
                         "\tcmpq\t$0, %rax\n\
@@ -241,19 +273,22 @@ impl Generator {
             }
 
             Statement::For {
-                m_inititial_expression,
+                m_initial_expression,
                 m_condition,
                 m_post_expression,
                 m_statement,
             } => {
-                self.enter_loop(self.generate_label(), self.generate_label());
+                let start_label = self.generate_label();
+                let end_label = self.generate_label();
+                self.enter_loop(start_label, end_label);
                 self.open_scope();
                 let condition_label = self.generate_label();
-                match m_inititial_expression {
+                match m_initial_expression {
                     Some(e) => gen_s.push_str(&self.generate_expression(&e)),
                     None => (),
                 }
                 gen_s.push_str(format!("{}:\n", &condition_label).as_str());
+                gen_s.push_str(&self.generate_expression(&m_condition));
                 gen_s.push_str(
                     format!(
                         "\tcmpq\t$0, %rax\n\
@@ -283,7 +318,9 @@ impl Generator {
                 );
             }
             Statement::While { m_condition, m_statement } => {
-                self.enter_loop(self.generate_label(), self.generate_label());
+                let start_label = self.generate_label();
+                let end_label = self.generate_label();
+                self.enter_loop(start_label, end_label);
                 self.open_scope();
                 gen_s.push_str(
                     format!("{}:\n", &self.last_start_label()).as_str(),
@@ -313,11 +350,13 @@ impl Generator {
                 );
             }
             Statement::Do { m_statement, m_condition } => {
-                self.enter_loop(self.generate_label(), self.generate_label());
+                let start_label = self.generate_label();
+                let end_label = self.generate_label();
+                self.enter_loop(start_label, end_label);
                 self.open_scope();
-                let start_label = self.last_start_label();
-                let end_label = self.last_end_label();
-                gen_s.push_str(format!("{}:\n", &start_label).as_str());
+                gen_s.push_str(
+                    format!("{}:\n", &self.last_start_label()).as_str(),
+                );
                 gen_s.push_str(&self.generate_statement(&m_statement));
                 gen_s.push_str(&self.generate_expression(&m_condition));
                 gen_s.push_str(
@@ -729,6 +768,17 @@ impl Generator {
         let mut gen_s = String::new();
 
         match factor {
+            Factor::FunCall { m_id, m_arguments } => {
+                for arg in m_arguments.iter().rev() {
+                    gen_s.push_str(&self.generate_expression(arg));
+                    gen_s.push_str("\tpushq\t%rax\n");
+                }
+                gen_s.push_str(format!("\tcall\t{}\n", m_id).as_str());
+                let size_to_deallocate = m_arguments.len() * 8;
+                gen_s.push_str(
+                    format!("\taddq\t${}, %rsp\n", size_to_deallocate).as_str(),
+                );
+            }
             Factor::Variable { m_var } => {
                 let var_offset = self.query_var(m_var).unwrap();
                 gen_s.push_str(
