@@ -13,7 +13,7 @@ mod parser;
 mod token;
 
 fn main() {
-    let debug = true;
+    let debug = false;
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -78,7 +78,7 @@ fn main() {
     let mut analyser = analyser::Analyser::new();
 
     match analyser.analyse_program(&program) {
-        Ok(_) => println!("Valid"),
+        Ok(_) => (),
         Err(e) => println!("{:?}", e),
     }
 
@@ -136,5 +136,5 @@ fn main() {
         }
     }
 
-    println!("Successfully compiled:");
+    // println!("Successfully compiled:");
 }

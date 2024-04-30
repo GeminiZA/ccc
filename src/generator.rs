@@ -83,7 +83,7 @@ impl Generator {
             None => (),
         }
         current_context.insert(var_name.clone(), self.stack_index);
-        self.stack_index = self.stack_index - 8;
+        self.stack_index -= 8;
     }
 
     fn add_manual_var(&mut self, var_name: &String, rbp_offest: i32) {
@@ -95,6 +95,9 @@ impl Generator {
             None => (),
         }
         current_context.insert(var_name.clone(), rbp_offest);
+        if let Some(last) = self.manual_vars_size.last_mut() {
+            *last += 1;
+        }
     }
 
     fn query_var(&mut self, var_name: &String) -> Option<i32> {
@@ -477,7 +480,7 @@ impl Generator {
                     None => panic!("Use of undeclared variable {}", m_name),
                 };
                 gen_s.push_str(
-                    format!("\tmovq\t%rax, {}(%rbp)\n", var_offset).as_str(),
+                    format!("\tmovq\t%rax, {}(%rbp)\n", &var_offset).as_str(),
                 );
             }
             Expression::Operation(conditional_expression) => gen_s.push_str(
@@ -624,7 +627,7 @@ impl Generator {
         );
 
         for next_op in &equality_expession.m_rest {
-            gen_s.push_str("\tpush\t%rax\n");
+            gen_s.push_str("\tpushq\t%rax\n");
             gen_s.push_str(&self.generate_relational_expression(&next_op.1));
             gen_s.push_str("\tpop\t%rcx\n");
             match next_op.0 {
@@ -658,7 +661,7 @@ impl Generator {
         );
 
         for next_op in &relational_expression.m_rest {
-            gen_s.push_str("\tpush\t%rax\n");
+            gen_s.push_str("\tpushq\t%rax\n");
             gen_s.push_str(&self.generate_additive_expression(&next_op.1));
             gen_s.push_str("\tpop\t%rcx\n");
             match next_op.0 {
@@ -704,7 +707,7 @@ impl Generator {
         gen_s.push_str(&self.generate_term(&additive_expression.m_first_term));
 
         for next_op in &additive_expression.m_rest {
-            gen_s.push_str("\tpush\t%rax\n");
+            gen_s.push_str("\tpushq\t%rax\n");
             gen_s.push_str(&self.generate_term(&next_op.1));
             gen_s.push_str("\tpop\t%rcx\n");
             match next_op.0 {
@@ -730,7 +733,7 @@ impl Generator {
         gen_s.push_str(&self.generate_factor(&term.m_first_factor));
 
         for next_op in &term.m_rest {
-            gen_s.push_str("\tpush\t%rax\n");
+            gen_s.push_str("\tpushq\t%rax\n");
             gen_s.push_str(&self.generate_factor(&next_op.1));
             gen_s.push_str("\tpop\t%rcx\n");
             match next_op.0 {
@@ -773,11 +776,29 @@ impl Generator {
                     gen_s.push_str(&self.generate_expression(arg));
                     gen_s.push_str("\tpushq\t%rax\n");
                 }
+                for i in 0..m_arguments.len() {
+                    match i {
+                        0 => gen_s.push_str(format!("\tpopq\t%rdi\n").as_str()),
+                        1 => gen_s.push_str(format!("\tpopq\t%rsi\n").as_str()),
+                        2 => gen_s.push_str(format!("\tpopq\t%rdx\n").as_str()),
+                        3 => gen_s.push_str(format!("\tpopq\t%rcx\n").as_str()),
+                        4 => gen_s.push_str(format!("\tpopq\t%r8\n").as_str()),
+                        5 => gen_s.push_str(format!("\tpopq\t%r9\n").as_str()),
+                        _ => {
+                            break;
+                        }
+                    }
+                }
+
                 gen_s.push_str(format!("\tcall\t{}\n", m_id).as_str());
-                let size_to_deallocate = m_arguments.len() * 8;
-                gen_s.push_str(
-                    format!("\taddq\t${}, %rsp\n", size_to_deallocate).as_str(),
-                );
+                if m_arguments.len() > 6 {
+                    let mut size_to_deallocate = 0;
+                    size_to_deallocate = (m_arguments.len() - 6) * 8;
+                    gen_s.push_str(
+                        format!("\taddq\t${}, %rsp\n", size_to_deallocate)
+                            .as_str(),
+                    );
+                }
             }
             Factor::Variable { m_var } => {
                 let var_offset = self.query_var(m_var).unwrap();
