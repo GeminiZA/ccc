@@ -155,10 +155,40 @@ impl Generator {
                 );
 
                 let mut cur_offset = 16;
-
-                for param in &function.m_params {
-                    self.add_manual_var(&param.1, cur_offset);
-                    cur_offset += 8;
+                for i in 0..function.m_params.len() {
+                    match i {
+                        0 => {
+                            gen_s.push_str(format!("\tpushq\t%rdi\n").as_str());
+                            self.add_var(&function.m_params.get(0).unwrap().1);
+                        }
+                        1 => {
+                            gen_s.push_str(format!("\tpushq\t%rsi\n").as_str());
+                            self.add_var(&function.m_params.get(1).unwrap().1);
+                        }
+                        2 => {
+                            gen_s.push_str(format!("\tpushq\t%rdx\n").as_str());
+                            self.add_var(&function.m_params.get(2).unwrap().1);
+                        }
+                        3 => {
+                            gen_s.push_str(format!("\tpushq\t%rcx\n").as_str());
+                            self.add_var(&function.m_params.get(3).unwrap().1);
+                        }
+                        4 => {
+                            gen_s.push_str(format!("\tpushq\t%r8\n").as_str());
+                            self.add_var(&function.m_params.get(4).unwrap().1);
+                        }
+                        5 => {
+                            gen_s.push_str(format!("\tpushq\t%r9\n").as_str());
+                            self.add_var(&function.m_params.get(5).unwrap().1);
+                        }
+                        x => {
+                            self.add_manual_var(
+                                &function.m_params.get(x).unwrap().1,
+                                cur_offset,
+                            );
+                            cur_offset += 8;
+                        }
+                    }
                 }
 
                 for block_item in items {

@@ -79,7 +79,7 @@ fn main() {
 
     match analyser.analyse_program(&program) {
         Ok(_) => (),
-        Err(e) => println!("{:?}", e),
+        Err(e) => panic!("{:?}", e),
     }
 
     let mut generator = generator::Generator::new();
