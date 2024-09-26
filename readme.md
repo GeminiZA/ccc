@@ -1,8 +1,8 @@
 # CCC
 ## Crusty C Compiler
-Toy project making a c compiler in rust 
+Compiler for a subset of C written in Rust. Mostly made to learn more Rust
 
-Just a tokenizer, recursive descent parer and assembly generator for a subset of c.
+Tokenizer, recursive descent parer and assembly generator for a subset of c. No anlyzer yet
 
 Following [This blog series](https://norasandler.com/2017/11/29/Write-a-Compiler.html) by [Nora Sandler](https://github.com/nlsandler)
 
